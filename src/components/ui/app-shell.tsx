@@ -16,6 +16,7 @@ import {
   X,
   Plus,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -86,7 +87,7 @@ export function AppShell({ children, user, profile }: AppShellProps) {
         <div className="space-y-6">
           {/* Logo & Brand */}
           <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#6366F1] to-[#22D3EE] flex items-center justify-center text-white font-bold text-xl shadow-[0_4px_14px_rgba(99,102,241,0.35)]">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#059669] to-[#10b981] flex items-center justify-center text-white font-bold text-xl shadow-[var(--shadow-emerald)]">
               F
             </div>
             <div>
@@ -114,11 +115,11 @@ export function AppShell({ children, user, profile }: AppShellProps) {
                   aria-current={isActive ? "page" : undefined}
                   className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
                     isActive
-                      ? "bg-[var(--bg-surface-elevated)] text-[var(--accent-primary)] shadow-[var(--shadow-neu-inset)] font-semibold"
+                      ? "bg-[var(--bg-surface-elevated)] text-[var(--brand)] border-l-2 border-[var(--brand)] font-semibold"
                       : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-elevated)]"
                   }`}
                 >
-                  <span className={isActive ? "text-[var(--accent-primary)]" : "text-[var(--text-muted)]"}>
+                  <span className={isActive ? "text-[var(--brand)]" : "text-[var(--text-muted)]"}>
                     {item.icon}
                   </span>
                   {item.name}
@@ -176,6 +177,7 @@ export function AppShell({ children, user, profile }: AppShellProps) {
           </div>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle size="sm" />
             <Link
               href="/courses"
               className="btn-primary text-xs px-3.5 py-1.5 flex items-center gap-1.5"

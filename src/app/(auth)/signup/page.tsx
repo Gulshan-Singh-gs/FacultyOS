@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signUp } from "@/server/auth/client";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -46,17 +47,22 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--bg-base)]">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--bg-base)] relative">
+      {/* Top right theme toggle */}
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle size="sm" showLabel />
+      </div>
+
       {/* Background ambient gradient glow blobs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-32 -left-32 w-96 h-96 bg-[#6366F1]/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-[#22D3EE]/10 rounded-full blur-3xl" />
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-md glass-panel p-8 md:p-10 space-y-8">
         {/* Brand header */}
         <div className="text-center space-y-2">
-          <div className="mx-auto w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#6366F1] to-[#22D3EE] flex items-center justify-center text-white font-bold text-2xl shadow-[0_4px_16px_rgba(99,102,241,0.35)]">
+          <div className="mx-auto w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#059669] to-[#10b981] flex items-center justify-center text-white font-bold text-2xl shadow-[var(--shadow-emerald)]">
             F
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">

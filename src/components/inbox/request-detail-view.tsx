@@ -618,7 +618,7 @@ export function RequestDetailView({ data }: RequestDetailViewProps) {
                 type="button"
                 onClick={() => handleAction("deny")}
                 disabled={isExecutingAction}
-                className="btn-secondary py-2.5 text-xs font-semibold inline-flex items-center justify-center gap-1.5 text-rose-600 dark:text-rose-400 cursor-pointer disabled:opacity-50"
+                className="btn-destructive py-2.5 text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                 id="action-deny-button"
               >
                 <AlertCircle className="w-3.5 h-3.5" />

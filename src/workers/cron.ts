@@ -17,6 +17,8 @@ const cronWorker = {
     },
     _ctx: ExecutionContext,
   ): Promise<void> {
+    void _env;
+    void _ctx;
     const { cron } = event;
 
     switch (cron) {

@@ -23,6 +23,8 @@ import { FaqAccordion } from "@/components/marketing/faq-accordion";
 import { PricingSection } from "@/components/marketing/pricing-section";
 import { AnalyticsIsland } from "@/components/marketing/analytics-island";
 
+import { ThemeToggle } from "@/components/theme/theme-toggle";
+
 export const dynamic = "force-static";
 
 export default function LandingPage() {
@@ -75,7 +77,7 @@ export default function LandingPage() {
         >
           {/* Brand Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-400 flex items-center justify-center text-white font-bold text-base shadow-sm group-hover:scale-105 transition-transform">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#059669] to-[#10b981] flex items-center justify-center text-white font-bold text-base shadow-sm group-hover:scale-105 transition-transform">
               F
             </div>
             <div className="flex flex-col">
@@ -112,6 +114,7 @@ export default function LandingPage() {
 
           {/* Right Action CTAs */}
           <div className="flex items-center gap-3">
+            <ThemeToggle size="sm" />
             <Link
               href="/login"
               className="text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2.5 py-1.5 transition-colors"
