@@ -81,7 +81,18 @@ export default {
           return reqOrResp;
         }
         const { handler } = await import("./server-functions/default/handler.mjs");
-        return await handler(reqOrResp, env, ctx, request.signal);
+        const res = await handler(reqOrResp, env, ctx, request.signal);
+        if (res.status >= 500 && request.method === "GET" && env?.ASSETS?.fetch) {
+          try {
+            const assetRes = await env.ASSETS.fetch(request);
+            if (assetRes && assetRes.status < 400) {
+              return assetRes;
+            }
+          } catch (e) {
+            console.error("[Fallback to ASSETS error]", e);
+          }
+        }
+        return res;
       });
     } catch (err) {
       console.error("[FacultyOS Worker Runtime Exception]", err);
@@ -104,7 +115,7 @@ export default {
     }
   },
 };
-`;
+\`;
 
     if (fs.existsSync(assetsDir)) {
       fs.writeFileSync(path.join(assetsDir, "_worker.js"), wrappedWorker, "utf-8");
@@ -114,10 +125,20 @@ export default {
     console.log("✓ Created .open-next/_worker.js with Pages error handler");
   }
 
-  // 2. Generate _routes.json so Cloudflare Pages knows to route SSR/API to worker and serve static files directly
+  // 2. Generate _routes.json so Cloudflare Pages routes dynamic paths to worker and serves static pages directly from edge CDN
   const routesJson = {
     version: 1,
-    include: ["/*"],
+    include: [
+      "/api/*",
+      "/r/*",
+      "/c/*",
+      "/dashboard*",
+      "/inbox*",
+      "/courses*",
+      "/ledger*",
+      "/boundaries*",
+      "/requests/*",
+    ],
     exclude: [
       "/_next/static/*",
       "/favicon.ico",
@@ -125,6 +146,7 @@ export default {
       "/icon.svg",
       "/robots.txt",
       "/sitemap.xml",
+      "/manifest.webmanifest",
     ],
   };
 
