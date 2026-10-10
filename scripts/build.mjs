@@ -115,7 +115,7 @@ export default {
     }
   },
 };
-\`;
+`;
 
     if (fs.existsSync(assetsDir)) {
       fs.writeFileSync(path.join(assetsDir, "_worker.js"), wrappedWorker, "utf-8");
@@ -192,12 +192,12 @@ export default {
         let modified = false;
         if (code.includes("Unexpected loadManifest")) {
           // Prevent crashes on preview-props.json or any un-inlined manifest
-          code = code.replace(
-            /throw new Error\(`Unexpected loadManifest\(\$\{\$PATH\}\) call!`\);/g,
-            'if ($PATH && ($PATH.endsWith("preview-props.json") || $PATH.endsWith("preview-props"))) { return {}; } return {};'
+          const loadManifestRegex = new RegExp(
+            "throw new Error\\([\\x60\\x22\\x27]Unexpected loadManifest[\\s\\S]*?\\);",
+            "g"
           );
           code = code.replace(
-            /throw new Error\("Unexpected loadManifest\(" \+ \$PATH \+ "\) call!"\);/g,
+            loadManifestRegex,
             'if ($PATH && ($PATH.endsWith("preview-props.json") || $PATH.endsWith("preview-props"))) { return {}; } return {};'
           );
           modified = true;
