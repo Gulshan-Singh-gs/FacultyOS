@@ -1,41 +1,58 @@
 import React from "react";
-import Link from "next/link";
+import type { Metadata } from "next";
 import { requireProfile } from "@/server/auth/session";
+import { createDb } from "@/server/db";
+import { getServerEnv } from "@/server/env";
+import {
+  getInboxRequestsForProfile,
+  type InboxQueueKey,
+} from "@/server/services/requests";
+import { InboxView } from "@/components/inbox/inbox-view";
 
 export const dynamic = "force-dynamic";
 
-export default async function InboxPage() {
-  await requireProfile();
+export const metadata: Metadata = {
+  title: "Triage Inbox • FacultyOS",
+  description: "Professor inbox and deterministic policy triage",
+};
+
+interface InboxPageProps {
+  searchParams: Promise<{ queue?: string }>;
+}
+
+export default async function InboxPage({ searchParams }: InboxPageProps) {
+  const { profile } = await requireProfile();
+  const { queue } = await searchParams;
+  const env = await getServerEnv();
+  const db = createDb(env.DB);
+
+  const validQueues: InboxQueueKey[] = [
+    "needs_decision",
+    "needs_student_info",
+    "urgent",
+    "auto_resolved",
+    "ta_review",
+    "closed",
+    "all",
+  ];
+
+  const selectedQueue: InboxQueueKey = validQueues.includes(
+    queue as InboxQueueKey,
+  )
+    ? (queue as InboxQueueKey)
+    : "needs_decision";
+
+  const { items, counts } = await getInboxRequestsForProfile(
+    db,
+    profile.id,
+    selectedQueue,
+  );
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between pb-2">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
-            Triage Inbox
-          </h1>
-          <p className="text-xs text-[var(--text-secondary)] mt-1">
-            Review student requests requiring professor intervention.
-          </p>
-        </div>
-      </div>
-
-      <div className="card-neu p-10 text-center space-y-4">
-        <div className="mx-auto w-12 h-12 rounded-xl bg-[var(--bg-input)] flex items-center justify-center text-[var(--accent-primary)] shadow-[var(--shadow-neu-inset)]">
-          ✓
-        </div>
-        <div className="max-w-md mx-auto space-y-1">
-          <h2 className="text-base font-bold text-[var(--text-primary)]">
-            Inbox Zero
-          </h2>
-          <p className="text-xs text-[var(--text-secondary)]">
-            All current student requests have been evaluated by your deterministic policies. No pending decisions.
-          </p>
-        </div>
-        <Link href="/courses" className="btn-secondary px-4 py-2 text-xs font-semibold inline-block">
-          View Courses →
-        </Link>
-      </div>
-    </div>
+    <InboxView
+      initialQueue={selectedQueue}
+      items={items}
+      counts={counts}
+    />
   );
 }

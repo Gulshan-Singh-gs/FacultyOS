@@ -204,12 +204,12 @@ pnpm db:migrate:local          # when schema changed
   - Refs: `UI.md §Screen 7 (submission result)`.
   - Commit: `feat(portal): status page`.
 
-- [ ] **T2.9 Professor inbox**
+- [x] **T2.9 Professor inbox**
   - Goal: `/inbox` with queues (Needs Decision, Needs Student Info, Urgent, Auto-Resolved, TA Review, Closed), list cards showing policy match + priority.
   - Refs: `UI.md §Screen 4`.
   - Commit: `feat(inbox): queues and list`.
 
-- [ ] **T2.10 Request detail**
+- [x] **T2.10 Request detail**
   - Goal: three-pane detail: payload, timeline (`request_events`), attachments metadata, policy explanation panel (matched rule, version, reasons).
   - Refs: `UI.md §Screen 4`.
   - Acceptance: every auto decision shows human-readable reason.
