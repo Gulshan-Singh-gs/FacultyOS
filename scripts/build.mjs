@@ -216,7 +216,15 @@ globalThis.loadManifestFromRelativePath = loadManifestFromRelativePath;
     "node_modules/next/dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-client.edge.production.js",
     "node_modules/next/dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-client.node.production.js",
     "node_modules/next/dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-client.edge.production.js",
-    "node_modules/next/dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-client.node.production.js"
+    "node_modules/next/dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-client.node.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.edge.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.node.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.edge.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.node.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.edge.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.node.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.edge.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.node.production.js"
   ];
   const rsdConsumerRegex = /throw (?:new )?Error\([\s\S]*?in the React Server Consumer Manifest[\s\S]*?\);?/g;
   const rsdConsumerFallback = 'bundlerConfig = { id: metadata[0], chunks: [], name: metadata[2] || "*" };';
@@ -238,8 +246,8 @@ globalThis.loadManifestFromRelativePath = loadManifestFromRelativePath;
       }
       if (content.includes("Connection closed.")) {
         content = content.replace(/options\s*&&\s*options\.unstable_allowPartialStream\s*\?\s*options\.unstable_allowPartialStream\s*:\s*!1/g, "!0");
-        content = content.replace(/:\s*reportGlobalError\(\w+,\s*Error\(['"]Connection closed\.['"]\)\);?/g, ": (weakResponse._closed = !0);");
-        content = content.replace(/reportGlobalError\(\w+,\s*Error\(['"]Connection closed\.['"]\)\);?/g, "/* connection closed */");
+        content = content.replace(/:\s*reportGlobalError\(\w+,\s*(?:new\s+)?Error\(['"]Connection closed\.['"]\)\);?/g, ": (typeof weakResponse !== 'undefined' ? (weakResponse._closed = !0) : void 0);");
+        content = content.replace(/reportGlobalError\(\w+,\s*(?:new\s+)?Error\(['"]Connection closed\.['"]\)\);?/g, "/* connection closed */");
         changed = true;
       }
       if (changed) {
@@ -510,6 +518,12 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
           if (!code.includes("globalThis._initNextManifests")) {
             code = singletonHelperCode + "\n" + code;
           }
+          modified = true;
+        }
+        if (code.includes("Connection closed.")) {
+          code = code.replace(/reportGlobalError\(\w+,\s*(?:new\s+)?Error\(['"]Connection closed\.['"]\)\);?/g, "/* connection closed */");
+          code = code.replace(/:\s*reportGlobalError\(\w+,\s*(?:new\s+)?Error\(['"]Connection closed\.['"]\)\);?/g, ": void 0;");
+          code = code.replace(/\b\w+\(\w+,\s*(?:new\s+)?Error\(['"]Connection closed\.['"]\)\)/g, "void 0");
           modified = true;
         }
         if (modified) {
