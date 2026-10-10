@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
-initOpenNextCloudflareForDev();
+// Only initialize OpenNext Cloudflare proxy during local development (`next dev`).
+// In production builds or CI (`next build`), running this causes Wrangler to attempt a remote proxy session (e.g. for Workers AI) which fails in non-interactive CI environments.
+if (process.env.NODE_ENV === "development") {
+  initOpenNextCloudflareForDev();
+}
 
 const nextConfig: NextConfig = {
   turbopack: {
