@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/build.mjs",
+    "build:next": "next build",
     "build:worker": "opennextjs-cloudflare build && node -e \"require('fs').copyFileSync('.open-next/worker.js', '.open-next/assets/_worker.js')\"",
     "preview": "opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare deploy",
@@ -13,8 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:migrate:local": "wrangler d1 migrations apply facultyos --local",
-    "db:migrate:prod": "wrangler d1 migrations apply facultyos --remote"
+    "db:migrate:local": "wrangler d1 migrations apply facultyos --local --config wrangler.toml.bak",
+    "db:migrate:prod": "wrangler d1 migrations apply facultyos --remote --config wrangler.toml.bak"
   },
   "dependencies": {
     "better-auth": "^1.7.7",
