@@ -219,9 +219,9 @@ globalThis.loadManifestFromRelativePath = loadManifestFromRelativePath;
     "node_modules/next/dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-client.node.production.js"
   ];
   const rsdConsumerRegex = /throw (?:new )?Error\([\s\S]*?in the React Server Consumer Manifest[\s\S]*?\);?/g;
-  const rsdConsumerFallback = 'return [bundlerConfig && bundlerConfig.id || metadata[0], bundlerConfig && bundlerConfig.chunks || [], metadata[2] || "*"];';
+  const rsdConsumerFallback = 'bundlerConfig = { id: metadata[0], chunks: [], name: metadata[2] || "*" };';
   const rsdServerRegex = /throw (?:new )?Error\([\s\S]*?in the React Server Manifest[\s\S]*?\);?/g;
-  const rsdServerFallback = 'return [id, [], name || "*"];';
+  const rsdServerFallback = 'resolvedModuleData = { id: id, chunks: [], name: name || "*", async: false };';
 
   for (const relPath of rsdPackages) {
     const fullP = path.resolve(relPath);
@@ -360,14 +360,6 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
         /throw new [^;]*?InvariantError\(['"]The manifests singleton was not initialized\.['"]\);/g,
         "return (typeof globalThisWithManifests !== 'undefined' && typeof MANIFESTS_SINGLETON !== 'undefined' ? (globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
       );
-      workerCode = workerCode.replace(
-        /throw (?:new )?Error\([\s\S]*?in the React Server Consumer Manifest[\s\S]*?\);?/g,
-        'return [bundlerConfig && bundlerConfig.id || metadata[0], bundlerConfig && bundlerConfig.chunks || [], metadata[2] || "*"];'
-      );
-      workerCode = workerCode.replace(
-        /throw (?:new )?Error\([\s\S]*?in the React Server Manifest[\s\S]*?\);?/g,
-        'return [id, [], name || "*"];'
-      );
       fs.writeFileSync(workerPath, workerCode, "utf-8");
       console.log("✓ Post-patched .open-next/worker.js with error handler, ASSETS fallback, and manifest helpers");
     }
@@ -462,20 +454,6 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
           if (!code.includes("globalThis._initNextManifests")) {
             code = singletonHelperCode + "\n" + code;
           }
-          modified = true;
-        }
-        if (code.includes("in the React Server Consumer Manifest")) {
-          code = code.replace(
-            /throw (?:new )?Error\([\s\S]*?in the React Server Consumer Manifest[\s\S]*?\);?/g,
-            'return [bundlerConfig && bundlerConfig.id || metadata[0], bundlerConfig && bundlerConfig.chunks || [], metadata[2] || "*"];'
-          );
-          modified = true;
-        }
-        if (code.includes("in the React Server Manifest")) {
-          code = code.replace(
-            /throw (?:new )?Error\([\s\S]*?in the React Server Manifest[\s\S]*?\);?/g,
-            'return [id, [], name || "*"];'
-          );
           modified = true;
         }
         if (modified) {
