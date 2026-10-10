@@ -3,32 +3,8 @@ compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".open-next"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "facultyos"
-database_id = "REPLACE_WITH_D1_ID"
-migrations_dir = "drizzle"
-
-[[kv_namespaces]]
-binding = "RATE_LIMIT"
-id = "REPLACE_WITH_KV_ID"
-
-# Optional Cloudflare R2 bucket for attachments.
-# Uncomment only if you have added an R2 subscription to your Cloudflare account.
-# [[r2_buckets]]
-# binding = "ATTACHMENTS"
-# bucket_name = "facultyos-assets"
-
-# Optional Cloudflare Queues producers.
-# Uncomment only if your account has a Cloudflare Workers Paid plan ($5/mo).
-# [[queues.producers]]
-# queue = "notifications"
-# binding = "NOTIFICATIONS"
-#
-# [[queues.producers]]
-# queue = "ai-jobs"
-# binding = "AI_JOBS"
-
-# Optional Workers AI binding.
-# [ai]
-# binding = "AI"
+# Bindings are configured directly in the Cloudflare Pages Dashboard:
+# Project -> Settings -> Functions -> Bindings
+# - KV namespace: RATE_LIMIT
+# - D1 database: DB (facultyos)
+# - Queue: NOTIFICATIONS (notifications)
