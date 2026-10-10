@@ -18,8 +18,9 @@ console.log("=== Building FacultyOS for Cloudflare Deployment ===");
 const isWindows = process.platform === "win32";
 const isCloudflare = process.env.CF_PAGES === "1" || process.env.CI === "true" || !isWindows;
 
-// 0. Pre-patch OpenNext load-manifest plugin to support Next.js 16 Turbopack preview-props.json
+// 0. Pre-patch plugins and Next.js base-server for error transparency and Next 16 Turbopack compatibility
 try {
+  // A. Pre-patch load-manifest plugin
   const loadManifestPluginPath = path.resolve(
     "node_modules/@opennextjs/cloudflare/dist/cli/build/patches/plugins/load-manifest.js"
   );
@@ -34,12 +35,51 @@ try {
         'p.endsWith("prefetch-hints")',
         'p.endsWith("prefetch-hints") || p.endsWith("preview-props")'
       );
-      fs.writeFileSync(loadManifestPluginPath, content, "utf-8");
-      console.log("✓ Pre-patched OpenNext load-manifest plugin for preview-props.json support");
     }
+    // Make loadManifest and evalManifest never throw unexpected errors
+    content = content.replace(
+      /throw new Error\(`Unexpected loadManifest\(\$\{\$PATH\}\) call!`\);/g,
+      "return {};"
+    );
+    content = content.replace(
+      /throw new Error\(`Unexpected evalManifest\(\$\{\$PATH\}\) call!`\);/g,
+      "return { __RSC_MANIFEST: {} };"
+    );
+    fs.writeFileSync(loadManifestPluginPath, content, "utf-8");
+    console.log("✓ Pre-patched OpenNext load-manifest plugin (preview-props + resilience)");
+  }
+
+  // B. Pre-patch find-dir plugin
+  const findDirPluginPath = path.resolve(
+    "node_modules/@opennextjs/cloudflare/dist/cli/build/patches/plugins/find-dir.js"
+  );
+  if (fs.existsSync(findDirPluginPath)) {
+    let content = fs.readFileSync(findDirPluginPath, "utf-8");
+    content = content.replace(
+      /throw new Error\(`Unexpected findDir\(\$\{\$DIR\}, \$\{\$NAME\}\) call!`\);/g,
+      "return false;"
+    );
+    fs.writeFileSync(findDirPluginPath, content, "utf-8");
+    console.log("✓ Pre-patched OpenNext find-dir plugin (resilience)");
+  }
+
+  // C. Pre-patch Next.js base-server to expose actual runtime error instead of opaque 'Internal Server Error'
+  const nextBaseServerPath = path.resolve("node_modules/next/dist/server/base-server.js");
+  if (fs.existsSync(nextBaseServerPath)) {
+    let content = fs.readFileSync(nextBaseServerPath, "utf-8");
+    content = content.replace(
+      "res.body('Internal Server Error').send();",
+      "res.body('Internal Server Error: ' + ((err && (err.stack || err.message)) || String(err))).send();"
+    );
+    content = content.replace(
+      "body: _renderresult.default.fromStatic('Internal Server Error', 'text/plain')",
+      "body: _renderresult.default.fromStatic('Internal Server Error: ' + ((err && (err.stack || err.message)) || String(err)), 'text/plain')"
+    );
+    fs.writeFileSync(nextBaseServerPath, content, "utf-8");
+    console.log("✓ Pre-patched Next.js base-server to surface runtime exception details");
   }
 } catch (e) {
-  console.warn("⚠️ Warning during load-manifest plugin pre-patch:", e);
+  console.warn("⚠️ Warning during pre-patching:", e);
 }
 
 try {
@@ -136,6 +176,22 @@ try {
             "g"
           );
           code = code.replace(loadManifestRegex, "return {};");
+          modified = true;
+        }
+        if (code.includes("Unexpected evalManifest")) {
+          const evalManifestRegex = new RegExp(
+            "throw new Error\\([\\x60\\x22\\x27]Unexpected evalManifest[\\s\\S]*?\\);",
+            "g"
+          );
+          code = code.replace(evalManifestRegex, "return { __RSC_MANIFEST: {} };");
+          modified = true;
+        }
+        if (code.includes("Unexpected findDir")) {
+          const findDirRegex = new RegExp(
+            "throw new Error\\([\\x60\\x22\\x27]Unexpected findDir[\\s\\S]*?\\);",
+            "g"
+          );
+          code = code.replace(findDirRegex, "return false;");
           modified = true;
         }
         if (modified) {
