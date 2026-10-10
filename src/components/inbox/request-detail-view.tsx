@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useTransition, useRef } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -14,11 +14,16 @@ import {
   Loader2,
   Lock,
   History,
+  Download,
+  Upload,
+  Archive,
+  Paperclip,
 } from "lucide-react";
 import type { DetailedRequestResult } from "@/server/services/requests";
 import {
   saveProfessorNotesAction,
   executeRequestAction,
+  uploadAttachmentAction,
 } from "@/server/actions/requests";
 
 interface RequestDetailViewProps {
@@ -46,9 +51,17 @@ export function RequestDetailView({ data }: RequestDetailViewProps) {
 
   const [notes, setNotes] = useState(request.professorNotes || "");
   const [currentStatus, setCurrentStatus] = useState(request.status);
+  const [timelineEvents, setTimelineEvents] = useState(events);
+  const [attachmentList, setAttachmentList] = useState(attachments);
   const [isSavingNotes, startSavingNotes] = useTransition();
   const [isExecutingAction, startExecutingAction] = useTransition();
+  const [isUploading, setIsUploading] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedCategory, setSelectedCategory] = useState("university_document");
 
   // Parse intake payload safely
   let payload: IntakePayloadData = {};
@@ -81,18 +94,106 @@ export function RequestDetailView({ data }: RequestDetailViewProps) {
   const handleSaveNotes = () => {
     startSavingNotes(async () => {
       await saveProfessorNotesAction(request.id, notes);
-      setActionFeedback("Notes saved successfully.");
-      setTimeout(() => setActionFeedback(null), 3000);
+      setActionFeedback("Private notes saved successfully.");
+      setTimeout(() => setActionFeedback(null), 3500);
     });
   };
 
-  const handleAction = (action: "approve" | "deny" | "require_info" | "assign_to_ta") => {
+  const handleAction = (
+    action: "approve" | "deny" | "require_info" | "assign_to_ta" | "close",
+  ) => {
     startExecutingAction(async () => {
-      const res = await executeRequestAction(request.id, action);
-      setCurrentStatus(res.newStatus);
-      setActionFeedback(`Status updated to ${res.newStatus.replace("_", " ")}.`);
-      setTimeout(() => setActionFeedback(null), 3000);
+      try {
+        const res = await executeRequestAction(request.id, action, notes);
+        setCurrentStatus(res.newStatus);
+
+        // Add optimistic event to timeline
+        setTimelineEvents((prev) => [
+          ...prev,
+          {
+            id: `evt-${Date.now()}`,
+            requestId: request.id,
+            eventType: res.eventType,
+            actorType: "professor",
+            payloadJson: JSON.stringify({
+              action,
+              notes: notes || null,
+              newStatus: res.newStatus,
+            }),
+            createdAt: new Date(),
+          },
+        ]);
+
+        setActionFeedback(`Status updated to ${res.newStatus.replace("_", " ")}.`);
+        setTimeout(() => setActionFeedback(null), 3500);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Failed to execute decision";
+        setActionFeedback(`Error: ${msg}`);
+        setTimeout(() => setActionFeedback(null), 4000);
+      }
     });
+  };
+
+  const handleFileUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fileInputRef.current?.files?.[0]) {
+      setUploadError("Please select a file to upload.");
+      return;
+    }
+
+    const file = fileInputRef.current.files[0];
+    setUploadError(null);
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("requestId", request.id);
+      formData.append("category", selectedCategory);
+
+      const res = await uploadAttachmentAction(formData);
+      if (res.success && res.attachment) {
+        setAttachmentList((prev) => [
+          ...prev,
+          {
+            id: res.attachment.id,
+            requestId: request.id,
+            r2Key: res.attachment.r2Key,
+            fileName: res.attachment.fileName,
+            mimeType: res.attachment.mimeType,
+            fileSize: res.attachment.fileSize,
+            category: res.attachment.category,
+            createdAt: new Date(),
+          },
+        ]);
+
+        // Add audit event to timeline
+        setTimelineEvents((prev) => [
+          ...prev,
+          {
+            id: `evt-${Date.now()}`,
+            requestId: request.id,
+            eventType: "attachment_uploaded",
+            actorType: "professor",
+            payloadJson: JSON.stringify({
+              fileName: res.attachment.fileName,
+              category: res.attachment.category,
+            }),
+            createdAt: new Date(),
+          },
+        ]);
+
+        setShowUploadForm(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        setActionFeedback("Attachment uploaded and verified successfully.");
+        setTimeout(() => setActionFeedback(null), 3500);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Upload failed.";
+      setUploadError(msg);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -118,78 +219,52 @@ export function RequestDetailView({ data }: RequestDetailViewProps) {
         </div>
       )}
 
-      {/* Main Request Header Banner */}
-      <div className="card-neu p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 border border-[var(--border-neu-card)]">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="glass-badge font-bold text-xs">
-              {course.courseCode}
-            </span>
-            <span className="text-xs text-[var(--text-muted)]">
-              {course.courseName}
-            </span>
-            <span className="text-xs text-[var(--text-muted)]">•</span>
-            <span className="text-xs text-[var(--text-secondary)]">
-              {course.term}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[var(--text-primary)] capitalize">
+      {/* Request Header Banner */}
+      <div className="card-neu p-6 sm:p-8 space-y-4 border border-[var(--border-neu-card)]">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="glass-badge font-mono font-bold text-xs">
+                {course.courseCode}
+              </span>
+              <span className="text-xs text-[var(--text-muted)]">
+                {course.courseName}
+              </span>
+              <span className="glass-badge text-[10px] font-bold uppercase tracking-wider">
+                {request.priority}
+              </span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-[var(--text-primary)] capitalize">
               {request.requestType.replace("_", " ")} Request
             </h1>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[var(--accent-primary)]/15 text-[var(--accent-primary)] capitalize">
-              {currentStatus.replace("_", " ")}
-            </span>
           </div>
 
-          <div className="text-xs text-[var(--text-secondary)] flex flex-wrap items-center gap-3">
-            <span>
-              Student:{" "}
-              <strong className="text-[var(--text-primary)]">
-                {studentIdentity?.displayLabel || "Student"}
-              </strong>
-            </span>
-            <span>•</span>
-            <span className="font-mono">
-              Public Ref: #{request.publicToken.slice(0, 10)}
-            </span>
-            <span>•</span>
-            <span>
-              Submitted:{" "}
-              {request.createdAt ? new Date(request.createdAt).toLocaleString() : ""}
+          {/* Pseudonymous student display & status badge */}
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <div className="text-xs font-semibold text-[var(--text-primary)] flex items-center gap-1 justify-end">
+                <UserCheck className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
+                <span>
+                  {studentIdentity?.displayLabel || `Student #${request.studentIdentityId.slice(0, 6)}`}
+                </span>
+              </div>
+              <div className="text-[11px] text-[var(--text-muted)] font-mono">
+                Submitted {request.createdAt ? new Date(request.createdAt).toLocaleString() : ""}
+              </div>
+            </div>
+
+            <span className="glass-badge text-xs font-bold capitalize px-3 py-1.5">
+              Status: {currentStatus.replace("_", " ")}
             </span>
           </div>
-        </div>
-
-        {/* Priority & Penalty Callout */}
-        <div className="flex flex-col sm:items-end gap-2 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[var(--text-muted)]">Priority:</span>
-            <span
-              className={`text-xs font-bold px-2.5 py-0.5 rounded-full capitalize ${
-                request.priority === "urgent"
-                  ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
-                  : "bg-[var(--bg-input)] text-[var(--text-secondary)]"
-              }`}
-            >
-              {request.priority}
-            </span>
-          </div>
-
-          {request.penaltyPercent !== null && request.penaltyPercent > 0 && (
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-              -{request.penaltyPercent}% Late Deduction Applied
-            </span>
-          )}
         </div>
       </div>
 
-      {/* Two-Column Grid: Left Pane (Payload & Notes) & Right Pane (Explainability & Rule Snapshot) */}
+      {/* ================= TWO-COLUMN MAIN BODY ================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* ================= LEFT / MAIN PANE (7 cols) ================= */}
         <div className="lg:col-span-7 space-y-6">
-          {/* Intake Payload Card */}
+          {/* Student Intake Payload */}
           <div className="card-neu p-6 rounded-2xl space-y-5 border border-[var(--border-neu-card)]">
             <div className="flex items-center justify-between border-b border-[var(--border-neu-card)]/60 pb-3">
               <div className="flex items-center gap-2">
@@ -328,29 +403,143 @@ export function RequestDetailView({ data }: RequestDetailViewProps) {
               </div>
             </div>
 
-            {/* Supporting Attachments Metadata */}
-            {attachments.length > 0 && (
-              <div className="space-y-2 text-xs pt-2 border-t border-[var(--border-neu-card)]/60">
-                <span className="text-[10px] uppercase font-bold text-[var(--text-muted)]">
-                  Supporting Documents ({attachments.length})
-                </span>
-                <div className="space-y-1.5">
-                  {attachments.map((att) => (
+            {/* Supporting Attachments Section with Downloads and Upload Action */}
+            <div className="space-y-3 text-xs pt-3 border-t border-[var(--border-neu-card)]/60">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Paperclip className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
+                  <span className="text-[10px] uppercase font-bold text-[var(--text-muted)]">
+                    Supporting Documents ({attachmentList.length})
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadForm(!showUploadForm)}
+                  className="text-[11px] font-semibold text-[var(--accent-primary)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                  id="toggle-upload-form-button"
+                >
+                  <Upload className="w-3 h-3" />
+                  <span>{showUploadForm ? "Cancel" : "Add Attachment"}</span>
+                </button>
+              </div>
+
+              {/* Upload Form Modal / Drawer */}
+              {showUploadForm && (
+                <form
+                  onSubmit={handleFileUpload}
+                  className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-neu-card)] space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-[var(--text-primary)]">
+                      Upload Verified Non-Medical Attachment
+                    </span>
+                    <span className="glass-badge text-[10px]">Strict Allowlist</span>
+                  </div>
+
+                  <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+                    Allowed types: PDF, PNG, JPEG. Max plan limit (5MB Free / 25MB Pro). Medical documents are strictly blocked.
+                  </p>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase text-[var(--text-muted)] block">
+                      Attachment Category
+                    </label>
+                    <select
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
+                      className="input-neu w-full p-2 text-xs"
+                      id="attachment-category-select"
+                    >
+                      <option value="university_document">University Document / Official Letter</option>
+                      <option value="athletics_schedule">Athletics / University Travel Schedule</option>
+                      <option value="technical_issue">Technical Issue / Platform Screenshot</option>
+                      <option value="other_admin">Other Administrative Documentation</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase text-[var(--text-muted)] block">
+                      Choose File
+                    </label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,image/png,image/jpeg"
+                      className="text-xs text-[var(--text-secondary)] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[var(--accent-primary)] file:text-white cursor-pointer"
+                      id="attachment-file-input"
+                    />
+                  </div>
+
+                  {uploadError && (
+                    <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs">
+                      {uploadError}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="submit"
+                      disabled={isUploading}
+                      className="btn-primary px-3.5 py-1.5 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      id="submit-upload-attachment-button"
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Uploading to R2...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Upload Document</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Attachments List */}
+              {attachmentList.length > 0 ? (
+                <div className="space-y-2">
+                  {attachmentList.map((att) => (
                     <div
                       key={att.id}
-                      className="p-2.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border-neu-card)] flex items-center justify-between"
+                      className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border-neu-card)] flex items-center justify-between gap-3"
                     >
-                      <span className="font-medium text-[var(--text-primary)]">
-                        {att.fileName}
-                      </span>
-                      <span className="glass-badge text-[10px] font-mono">
-                        {att.mimeType} • {Math.round(att.fileSize / 1024)} KB
-                      </span>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <FileText className="w-4 h-4 text-[var(--accent-primary)] shrink-0" />
+                        <div className="min-w-0">
+                          <p className="font-semibold text-[var(--text-primary)] truncate text-xs">
+                            {att.fileName}
+                          </p>
+                          <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
+                            <span className="capitalize">{att.category.replace(/_/g, " ")}</span>
+                            <span>•</span>
+                            <span>{Math.round(att.fileSize / 1024)} KB</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <a
+                        href={`/api/attachments/${att.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-secondary px-3 py-1.5 text-[11px] font-semibold inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
+                        id={`download-attachment-${att.id}`}
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>Download</span>
+                      </a>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <p className="text-[11px] text-[var(--text-muted)] italic">
+                  No supporting documents attached.
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Private Professor Notes Panel */}
@@ -457,6 +646,17 @@ export function RequestDetailView({ data }: RequestDetailViewProps) {
                 <UserCheck className="w-3.5 h-3.5" />
                 <span>Assign to TA</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => handleAction("close")}
+                disabled={isExecutingAction}
+                className="btn-secondary col-span-2 py-2.5 text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                id="action-close-button"
+              >
+                <Archive className="w-3.5 h-3.5" />
+                <span>Close Request</span>
+              </button>
             </div>
           </div>
 
@@ -546,17 +746,17 @@ export function RequestDetailView({ data }: RequestDetailViewProps) {
             </h2>
           </div>
           <span className="glass-badge text-[10px] font-mono">
-            {events.length} Event{events.length !== 1 ? "s" : ""}
+            {timelineEvents.length} Event{timelineEvents.length !== 1 ? "s" : ""}
           </span>
         </div>
 
-        {events.length === 0 ? (
+        {timelineEvents.length === 0 ? (
           <p className="text-xs text-[var(--text-muted)] italic">
             No events logged yet.
           </p>
         ) : (
           <div className="space-y-3">
-            {events.map((evt, idx) => (
+            {timelineEvents.map((evt, idx) => (
               <div
                 key={evt.id}
                 className="flex items-start gap-3 p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-neu-card)] text-xs"

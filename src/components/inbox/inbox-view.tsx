@@ -17,8 +17,10 @@ import {
   ArrowRight,
   ShieldCheck,
   Check,
+  Loader2,
 } from "lucide-react";
 import type { InboxRequestItem, InboxQueueCounts, InboxQueueKey } from "@/server/services/requests";
+import { bulkCloseAutoResolvedAction } from "@/server/actions/requests";
 
 interface InboxViewProps {
   initialQueue: InboxQueueKey;
@@ -74,8 +76,13 @@ function formatRelativeTime(date: Date | null) {
 export function InboxView({ initialQueue, items, counts }: InboxViewProps) {
   const [activeQueue, setActiveQueue] = useState<InboxQueueKey>(initialQueue);
   const [searchQuery, setSearchQuery] = useState("");
+  const [closedIds, setClosedIds] = useState<string[]>([]);
+  const [isBulkClosing, setIsBulkClosing] = useState(false);
+  const [bulkFeedback, setBulkFeedback] = useState<string | null>(null);
 
-  const filteredItems = items.filter((item) => {
+  const displayedItems = items.filter((item) => !closedIds.includes(item.id));
+
+  const filteredItems = displayedItems.filter((item) => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -85,6 +92,27 @@ export function InboxView({ initialQueue, items, counts }: InboxViewProps) {
       (item.matchedPolicyName && item.matchedPolicyName.toLowerCase().includes(query))
     );
   });
+
+  const handleBulkClose = async () => {
+    const idsToClose = filteredItems.map((item) => item.id);
+    if (idsToClose.length === 0) return;
+
+    setIsBulkClosing(true);
+    try {
+      const res = await bulkCloseAutoResolvedAction(idsToClose);
+      if (res.success) {
+        setClosedIds((prev) => [...prev, ...idsToClose]);
+        setBulkFeedback(`Successfully marked ${res.closedCount} auto-resolved requests as closed.`);
+        setTimeout(() => setBulkFeedback(null), 4000);
+      }
+    } catch {
+      setBulkFeedback("Failed to bulk close requests.");
+      setTimeout(() => setBulkFeedback(null), 4000);
+    } finally {
+      setIsBulkClosing(false);
+    }
+  };
+
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -151,6 +179,46 @@ export function InboxView({ initialQueue, items, counts }: InboxViewProps) {
           );
         })}
       </div>
+
+      {/* Bulk Action Feedback Banner */}
+      {bulkFeedback && (
+        <div className="p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-xs text-emerald-700 dark:text-emerald-300 font-medium flex items-center justify-between animate-in fade-in">
+          <span>{bulkFeedback}</span>
+        </div>
+      )}
+
+      {/* Auto-Resolved Bulk Action Bar */}
+      {activeQueue === "auto_resolved" && filteredItems.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-neu-card)]">
+          <div className="space-y-0.5">
+            <h3 className="text-xs font-bold text-[var(--text-primary)]">
+              Auto-Resolved Requests Ready for Archival
+            </h3>
+            <p className="text-[11px] text-[var(--text-secondary)]">
+              {filteredItems.length} request{filteredItems.length !== 1 ? "s" : ""} were automatically processed according to active course policies.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleBulkClose}
+            disabled={isBulkClosing}
+            className="btn-secondary px-4 py-2 text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+            id="bulk-close-auto-resolved-button"
+          >
+            {isBulkClosing ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Archiving...</span>
+              </>
+            ) : (
+              <>
+                <Archive className="w-3.5 h-3.5" />
+                <span>Mark All as Closed</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Items List or Calm Empty State */}
       {filteredItems.length === 0 ? (

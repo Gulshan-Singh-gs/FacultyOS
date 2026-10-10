@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { Db } from "@/server/db";
 import {
@@ -280,23 +280,68 @@ export async function updateProfessorNotesInternal(
     .where(eq(requests.id, requestId));
 }
 
+export type DecisionActionType =
+  | "approve"
+  | "deny"
+  | "require_info"
+  | "assign_to_ta"
+  | "close";
+
 /**
  * Updates request status / action bar state with ownership verification and audit event.
+ * Transition mapping:
+ * - approve      -> status: approved, event: professor_approved
+ * - deny         -> status: denied, event: professor_denied
+ * - require_info -> status: needs_student_info, event: professor_requested_info
+ * - assign_to_ta -> status: ta_review, event: ta_assigned
+ * - close        -> status: closed, event: professor_closed
  */
 export async function updateRequestStatusActionInternal(
   db: Db,
   profileId: string,
   requestId: string,
-  newStatus: string,
+  action: DecisionActionType | string,
   actionNotes?: string,
-): Promise<void> {
+  assignedToUserId?: string,
+): Promise<{ newStatus: string; eventType: string }> {
   const detail = await getRequestDetailWithOwnership(db, profileId, requestId);
+
+  let newStatus: string;
+  let eventType: string;
+
+  switch (action) {
+    case "approve":
+      newStatus = "approved";
+      eventType = "professor_approved";
+      break;
+    case "deny":
+      newStatus = "denied";
+      eventType = "professor_denied";
+      break;
+    case "require_info":
+      newStatus = "needs_student_info";
+      eventType = "professor_requested_info";
+      break;
+    case "assign_to_ta":
+      newStatus = "ta_review";
+      eventType = "ta_assigned";
+      break;
+    case "close":
+      newStatus = "closed";
+      eventType = "professor_closed";
+      break;
+    default:
+      newStatus = action;
+      eventType = `status_changed_to_${action}`;
+  }
 
   await db
     .update(requests)
     .set({
       status: newStatus,
       updatedAt: new Date(),
+      ...(actionNotes !== undefined ? { professorNotes: actionNotes } : {}),
+      ...(assignedToUserId !== undefined ? { assignedToUserId } : {}),
       ...(newStatus === "approved" || newStatus === "denied" || newStatus === "closed"
         ? { resolvedAt: new Date() }
         : {}),
@@ -306,12 +351,77 @@ export async function updateRequestStatusActionInternal(
   await db.insert(requestEvents).values({
     id: nanoid(),
     requestId,
-    eventType: `status_changed_to_${newStatus}`,
+    eventType,
     actorType: "professor",
     payloadJson: JSON.stringify({
+      action,
       previousStatus: detail.request.status,
       newStatus,
-      notes: actionNotes ?? null,
+      notes: actionNotes ?? detail.request.professorNotes ?? null,
+      assignedToUserId: assignedToUserId ?? null,
     }),
   });
+
+  return { newStatus, eventType };
 }
+
+/**
+ * Bulk marks Auto-Resolved requests as Closed with strict profile ownership check.
+ * Rejects with RequestAccessError if any requested item belongs to another professor.
+ */
+export async function bulkCloseAutoResolvedInternal(
+  db: Db,
+  profileId: string,
+  requestIds: string[],
+): Promise<{ closedCount: number }> {
+  if (requestIds.length === 0) return { closedCount: 0 };
+
+  const rows = await db
+    .select({
+      requestId: requests.id,
+      courseProfileId: courses.profileId,
+      status: requests.status,
+    })
+    .from(requests)
+    .innerJoin(courses, eq(requests.courseId, courses.id))
+    .where(inArray(requests.id, requestIds));
+
+  // Hard Rule 5 IDOR check: if any request belongs to a different profile, reject immediately
+  for (const r of rows) {
+    if (r.courseProfileId !== profileId) {
+      throw new RequestAccessError("Unauthorized bulk close attempt");
+    }
+  }
+
+  // Filter only items currently in auto-resolved state
+  const validIds = rows
+    .filter((r) => r.status === "auto_approved" || r.status === "auto_denied")
+    .map((r) => r.requestId);
+
+  if (validIds.length === 0) return { closedCount: 0 };
+
+  await db
+    .update(requests)
+    .set({
+      status: "closed",
+      resolvedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(inArray(requests.id, validIds));
+
+  for (const id of validIds) {
+    await db.insert(requestEvents).values({
+      id: nanoid(),
+      requestId: id,
+      eventType: "professor_closed",
+      actorType: "professor",
+      payloadJson: JSON.stringify({
+        action: "bulk_close_auto_resolved",
+        newStatus: "closed",
+      }),
+    });
+  }
+
+  return { closedCount: validIds.length };
+}
+

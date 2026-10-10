@@ -215,13 +215,13 @@ pnpm db:migrate:local          # when schema changed
   - Acceptance: every auto decision shows human-readable reason.
   - Commit: `feat(inbox): request detail`.
 
-- [ ] **T2.11 Decision actions**
+- [x] **T2.11 Decision actions**
   - Goal: approve / deny / require-info / assign-to-TA / close with private notes; each writes audit event + optional template reply; bulk limited to low-risk close only.
   - Refs: `PRD-BRD-TRD.md §PRD FR3`; AGENTS Hard Rule 8.
   - Tests: decision on another profile's request rejected.
   - Commit: `feat(inbox): decision actions`.
 
-- [ ] **T2.12 Attachments**
+- [x] **T2.12 Attachments**
   - Goal: upload to R2 via server action; allowlist MIME (pdf/png/jpg) + size caps per plan; category allowlist only (non-medical); store metadata row.
   - Refs: `PRD-BRD-TRD.md §TRD-5`; AGENTS Hard Rule 1.
   - Tests: blocked MIME and blocked category rejected.

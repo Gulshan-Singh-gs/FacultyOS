@@ -136,3 +136,63 @@ export const AnyIntakeRequestSchema = z.union([
 ]);
 
 export type AnyIntakeRequestInput = z.infer<typeof AnyIntakeRequestSchema>;
+
+/**
+ * HARD RULE 1: Strict Attachment Allowlist
+ * MIME types allowed: application/pdf, image/png, image/jpeg ONLY.
+ * Categories allowed: university_document, athletics_schedule, technical_issue, other_admin ONLY.
+ * Medical categories and blocked MIME types must be rejected.
+ */
+export const ALLOWED_ATTACHMENT_MIME_TYPES = [
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+] as const;
+
+export type AllowedAttachmentMimeType = (typeof ALLOWED_ATTACHMENT_MIME_TYPES)[number];
+
+export const ALLOWED_ATTACHMENT_CATEGORIES = [
+  "university_document",
+  "athletics_schedule",
+  "technical_issue",
+  "other_admin",
+] as const;
+
+export type AllowedAttachmentCategory = (typeof ALLOWED_ATTACHMENT_CATEGORIES)[number];
+
+export function isMedicalCategory(category: string): boolean {
+  const normalized = category.toLowerCase().trim();
+  const medicalKeywords = [
+    "med",
+    "doctor",
+    "physician",
+    "health",
+    "clinic",
+    "hospital",
+    "prescription",
+    "sick",
+    "illness",
+    "injury",
+    "therapy",
+    "psych",
+    "mental",
+  ];
+  return medicalKeywords.some((kw) => normalized.includes(kw));
+}
+
+export const AttachmentCategorySchema = z.enum(ALLOWED_ATTACHMENT_CATEGORIES, {
+  message:
+    "Invalid attachment category. Only university documents, athletic schedules, technical issues, or administrative records are permitted. Medical documents are strictly blocked (Hard Rule 1).",
+});
+
+export const AttachmentMetadataSchema = z.object({
+  requestId: z.string().min(1, "Request ID is required."),
+  category: AttachmentCategorySchema,
+  fileName: z.string().min(1, "File name is required.").max(255),
+  mimeType: z.enum(ALLOWED_ATTACHMENT_MIME_TYPES, {
+    message: "Unsupported file type. Only PDF, PNG, and JPEG files are permitted.",
+  }),
+  fileSize: z.number().int().positive("File size must be positive."),
+});
+
+export type AttachmentMetadataInput = z.infer<typeof AttachmentMetadataSchema>;
