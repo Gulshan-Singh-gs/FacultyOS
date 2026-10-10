@@ -1,4 +1,28 @@
-# Phase 1: Architecture Proposal
+# FacultyOS MVP Architecture & Execution Tracking
+
+**Current Phase:** Phase 2 (Request Engine) — Ready for Kickoff  
+**Phase 0 (Bootstrap):** [x] Complete  
+**Phase 1 (Foundation: Identity, Courses, NeuGlass Shell):** [x] Complete & Audited  
+**Phase 2 (Request Engine):** [~] In Progress (T2.1 pre-satisfied)  
+**Phase 3 (Boundaries + AI Assistant):** [ ] Pending  
+**Phase 4 (Ledger, Reports, Billing, Launch):** [ ] Pending  
+
+---
+
+## Phase 1 Acceptance Criteria Sign-Off
+- [x] Professor can sign up via Better Auth with calm error handling
+- [x] Auto-provisioning of `professor_profiles`, default `boundaries`, and `usage_metrics`
+- [x] Professor can create a course with secure, hashed portal access token
+- [x] Plan limits strictly enforced (Free plan capped at 1 course, Pro allows 20, Department allows 200)
+- [x] Token rotation invalidates old access link and generates fresh hashed token
+- [x] NeuGlass design system implemented (cards, inset inputs, glass panels, buttons, badges)
+- [x] Dashboard shell renders live KPI tiles and empty states with action CTAs
+- [x] AppShell navigation with Lucide React icons, active state indicators, and keyboard accessibility
+- [x] All Phase 1 gates pass (lint, typecheck, unit tests: 19/19)
+
+---
+
+# Architecture Proposal
 
 ## 1. Confirmed Product Scope
 

@@ -51,39 +51,39 @@ pnpm db:migrate:local          # when schema changed
 
 **Goal:** repo is toolchain-complete, infra-bound, CI-green, and the agent knows exactly what already exists.
 
-- [ ] **T0.1 Repo inventory & gap analysis**
+- [x] **T0.1 Repo inventory & gap analysis**
   - Goal: produce `docs/GAP.md` listing existing files vs. this plan's deliverables.
   - Refs: this plan §2 repo map; `PRD-BRD-TRD.md §TRD`.
   - Deliverable: `docs/GAP.md` only. No code changes.
   - Acceptance: every task deliverable in Phases 1–4 is marked `exists | partial | missing`.
   - Commit: `docs: add gap analysis`.
 
-- [ ] **T0.2 Toolchain verification**
+- [x] **T0.2 Toolchain verification**
   - Goal: Next.js 15 App Router + `@opennextjs/cloudflare`, TS strict, Tailwind v3, ESLint, Vitest configured; `package.json` scripts match TRD (`dev/build/preview/deploy/lint/typecheck/test/db:*`).
   - Refs: `PRD-BRD-TRD.md §TRD-1, §TRD-7`.
   - Acceptance: `pnpm preview` boots locally on Workers runtime; `tsc --noEmit` clean.
   - Commit: `chore: verify toolchain`.
 
-- [ ] **T0.3 Cloudflare bindings & secrets contract**
+- [x] **T0.3 Cloudflare bindings & secrets contract**
   - Goal: `wrangler.toml` declares D1, KV, R2, Queues (`notifications`, `ai-jobs`), AI binding; create `.dev.vars.example` and `docs/SECRETS.md` listing every secret name (no values).
   - Refs: `PRD-BRD-TRD.md §TRD-1, §TRD-5`.
   - Acceptance: `wrangler dev` starts with all bindings resolvable locally.
   - Commit: `chore(infra): bindings and secrets contract`.
 
-- [ ] **T0.4 Database baseline**
+- [x] **T0.4 Database baseline**
   - Goal: `src/server/db/schema.ts` contains ALL tables from TRD §2 (domain + Better Auth tables); migration generated and applied locally.
   - Refs: `PRD-BRD-TRD.md §TRD-2`.
   - Acceptance: `pnpm db:generate && pnpm db:migrate:local` succeeds; `wrangler d1 execute` shows all tables.
   - Tests: none (schema only).
   - Commit: `feat(db): baseline schema and migration`.
 
-- [ ] **T0.5 CI pipeline**
+- [x] **T0.5 CI pipeline**
   - Goal: GitHub Actions with `gates` job (lint/typecheck/test) and `deploy` job (migrate + deploy) gated on main.
   - Refs: `PRD-BRD-TRD.md §TRD-7`.
   - Acceptance: PR opens → gates run; merge to main → deploy runs (secrets may be placeholder until human adds them).
   - Commit: `ci: gates and deploy pipeline`.
 
-- [ ] **T0.6 Test harness**
+- [x] **T0.6 Test harness**
   - Goal: Vitest configured with path aliases; one placeholder suite passing.
   - Acceptance: `pnpm test` green.
   - Commit: `test: harness`.
@@ -158,7 +158,7 @@ pnpm db:migrate:local          # when schema changed
 
 **Goal:** students submit structured requests; deterministic policies decide; professors triage the remainder with full explainability.
 
-- [ ] **T2.1 Policy engine core**
+- [x] **T2.1 Policy engine core**
   - Goal: pure engine module (`types`, `evaluate`, guardrails: high-stakes override, default manual-review fallback, priority ordering) with **100% unit coverage**.
   - Refs: `PRD-BRD-TRD.md §TRD-4`; AGENTS Hard Rules 2,3.
   - Tests: approve/deny/penalty/priority/fallback/inactive/high-stakes cases.

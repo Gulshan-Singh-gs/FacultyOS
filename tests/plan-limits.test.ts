@@ -30,9 +30,9 @@ describe("Plan limits service", () => {
     expect(() => assertCanCreateCourse("pro", 20)).toThrow(PlanLimitError);
   });
 
-  it("allows department plan to create up to 100 courses", () => {
-    expect(() => assertCanCreateCourse("department", 99)).not.toThrow();
-    expect(() => assertCanCreateCourse("department", 100)).toThrow(PlanLimitError);
+  it("allows department plan to create up to 200 courses", () => {
+    expect(() => assertCanCreateCourse("department", 199)).not.toThrow();
+    expect(() => assertCanCreateCourse("department", 200)).toThrow(PlanLimitError);
   });
 
   it("falls back to free plan for unknown plan names", () => {

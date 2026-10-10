@@ -78,11 +78,11 @@ UI.md wins on visuals. If still ambiguous, STOP and ask the product owner.
 
 ## 3. Definition of Done (global)
 
-- [ ] Zod schema exists for all inputs
-- [ ] Unit tests pass for policy engine changes (100% coverage on engine)
-- [ ] No PII in logs, analytics, or AI prompts (redaction applied)
-- [ ] UI change follows UI.md tokens (no ad-hoc colors/shadows)
-- [ ] Migration generated via `pnpm db:generate` if schema changed
+- [x] Zod schema exists for all inputs
+- [x] Unit tests pass for policy engine changes (100% coverage on engine)
+- [x] No PII in logs, analytics, or AI prompts (redaction applied)
+- [x] UI change follows UI.md tokens (no ad-hoc colors/shadows)
+- [x] Migration generated via `pnpm db:generate` if schema changed
 
 ## 4. Phase Gates
 

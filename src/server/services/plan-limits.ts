@@ -37,7 +37,7 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     retentionDays: 365,
   },
   department: {
-    maxActiveCourses: 100,
+    maxActiveCourses: 200,
     maxRequestsPerMonth: Infinity,
     maxPoliciesPerCourse: 100,
     aiEnabled: true,
