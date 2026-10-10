@@ -75,7 +75,51 @@ try {
     console.log("✓ Configured .assetsignore in assets directory");
   }
 
-  // 4. Post-patch all built worker and handler files in .open-next to ensure unexpected loadManifest doesn't crash
+  // 2. Enhance .open-next/worker.js with error resilience & ASSETS fallback
+  if (fs.existsSync(workerPath)) {
+    let workerCode = fs.readFileSync(workerPath, "utf-8");
+    if (!workerCode.includes("[FacultyOS Worker Runtime Exception]")) {
+      workerCode = workerCode.replace(
+        "return handler(reqOrResp, env, ctx, request.signal);",
+        `const res = await handler(reqOrResp, env, ctx, request.signal);
+            if (res && res.status >= 500 && request.method === "GET" && env?.ASSETS?.fetch) {
+              try {
+                const assetRes = await env.ASSETS.fetch(request);
+                if (assetRes && assetRes.status < 400) return assetRes;
+              } catch (e) {}
+            }
+            return res;`
+      );
+      workerCode = workerCode.replace(
+        "return runWithCloudflareRequestContext(request, env, ctx, async () => {",
+        `try {
+          return await runWithCloudflareRequestContext(request, env, ctx, async () => {`
+      );
+      const lastFetchBrace = workerCode.lastIndexOf("    },\n};");
+      if (lastFetchBrace !== -1) {
+        const catchBlock = `        } catch (err) {
+          console.error("[FacultyOS Worker Runtime Exception]", err);
+          if (env?.ASSETS?.fetch && request.method === "GET") {
+            try {
+              const assetRes = await env.ASSETS.fetch(request);
+              if (assetRes && assetRes.status < 400) return assetRes;
+            } catch (e) {}
+          }
+          return new Response(
+            \`FacultyOS Worker Runtime Exception:\\n\${err?.stack || err?.message || String(err)}\\n\\nURL: \${request.url}\\nMethod: \${request.method}\`,
+            { status: 500, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+          );
+        }
+    },
+};`;
+        workerCode = workerCode.slice(0, lastFetchBrace) + catchBlock;
+      }
+      fs.writeFileSync(workerPath, workerCode, "utf-8");
+      console.log("✓ Post-patched .open-next/worker.js with error handler and ASSETS fallback");
+    }
+  }
+
+  // 3. Post-patch all built worker and handler files in .open-next to ensure unexpected loadManifest returns {} instead of crashing
   function patchFilesRecursively(dir) {
     if (!fs.existsSync(dir)) return;
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -87,15 +131,11 @@ try {
         let code = fs.readFileSync(fullPath, "utf-8");
         let modified = false;
         if (code.includes("Unexpected loadManifest")) {
-          // Prevent crashes on preview-props.json or any un-inlined manifest
           const loadManifestRegex = new RegExp(
             "throw new Error\\([\\x60\\x22\\x27]Unexpected loadManifest[\\s\\S]*?\\);",
             "g"
           );
-          code = code.replace(
-            loadManifestRegex,
-            'if ($PATH && ($PATH.endsWith("preview-props.json") || $PATH.endsWith("preview-props"))) { return {}; } return {};'
-          );
+          code = code.replace(loadManifestRegex, "return {};");
           modified = true;
         }
         if (modified) {
