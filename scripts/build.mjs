@@ -18,6 +18,30 @@ console.log("=== Building FacultyOS for Cloudflare Deployment ===");
 const isWindows = process.platform === "win32";
 const isCloudflare = process.env.CF_PAGES === "1" || process.env.CI === "true" || !isWindows;
 
+// 0. Pre-patch OpenNext load-manifest plugin to support Next.js 16 Turbopack preview-props.json
+try {
+  const loadManifestPluginPath = path.resolve(
+    "node_modules/@opennextjs/cloudflare/dist/cli/build/patches/plugins/load-manifest.js"
+  );
+  if (fs.existsSync(loadManifestPluginPath)) {
+    let content = fs.readFileSync(loadManifestPluginPath, "utf-8");
+    if (!content.includes("preview-props")) {
+      content = content.replace(
+        "{*-manifest,required-server-files,prefetch-hints}.json",
+        "{*-manifest,required-server-files,prefetch-hints,preview-props}.json"
+      );
+      content = content.replace(
+        'p.endsWith("prefetch-hints")',
+        'p.endsWith("prefetch-hints") || p.endsWith("preview-props")'
+      );
+      fs.writeFileSync(loadManifestPluginPath, content, "utf-8");
+      console.log("✓ Pre-patched OpenNext load-manifest plugin for preview-props.json support");
+    }
+  }
+} catch (e) {
+  console.warn("⚠️ Warning during load-manifest plugin pre-patch:", e);
+}
+
 try {
   console.log("Executing OpenNext Cloudflare adapter build...");
   try {
@@ -132,6 +156,38 @@ export default {
     }
     console.log("✓ Mirrored assets into .open-next root directory");
   }
+
+  // 4. Post-patch all built worker and handler files in .open-next to ensure unexpected loadManifest doesn't crash
+  function patchFilesRecursively(dir) {
+    if (!fs.existsSync(dir)) return;
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        patchFilesRecursively(fullPath);
+      } else if (entry.isFile() && (entry.name.endsWith(".js") || entry.name.endsWith(".mjs"))) {
+        let code = fs.readFileSync(fullPath, "utf-8");
+        let modified = false;
+        if (code.includes("Unexpected loadManifest")) {
+          // Prevent crashes on preview-props.json or any un-inlined manifest
+          code = code.replace(
+            /throw new Error\(`Unexpected loadManifest\(\$\{\$PATH\}\) call!`\);/g,
+            'if ($PATH && ($PATH.endsWith("preview-props.json") || $PATH.endsWith("preview-props"))) { return {}; } return {};'
+          );
+          code = code.replace(
+            /throw new Error\("Unexpected loadManifest\(" \+ \$PATH \+ "\) call!"\);/g,
+            'if ($PATH && ($PATH.endsWith("preview-props.json") || $PATH.endsWith("preview-props"))) { return {}; } return {};'
+          );
+          modified = true;
+        }
+        if (modified) {
+          fs.writeFileSync(fullPath, code, "utf-8");
+          console.log(`✓ Post-patched ${path.relative(process.cwd(), fullPath)} for loadManifest resilience`);
+        }
+      }
+    }
+  }
+  patchFilesRecursively(openNextDir);
 } catch (err) {
   if (isWindows && !process.env.CF_PAGES) {
     console.warn("⚠️ OpenNext encountered Windows local symlink limitation. Running standard next build for local validation.");
