@@ -11,10 +11,10 @@ binding = "ASSETS"
 BETTER_AUTH_URL = "https://facultyos.gs-softwares.workers.dev"
 BETTER_AUTH_TRUSTED_ORIGINS = "https://facultyos.gs-softwares.workers.dev,https://*.workers.dev,https://facultyos.com,http://localhost:3000"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "facultyos"
-database_id = "ca602aea-9aa7-4dec-acbe-b13d7ca2e99b"
-migrations_dir = "drizzle"
+# Bindings are configured in Cloudflare Dashboard:
+# Workers & Pages -> facultyos -> Settings -> Variables and Bindings:
+# - D1 database: DB (facultyos)
+# - KV namespace: RATE_LIMIT
+
 
 
