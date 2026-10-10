@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "node scripts/build.mjs",
     "build:next": "next build",
-    "build:worker": "opennextjs-cloudflare build && node -e \"require('fs').copyFileSync('.open-next/worker.js', '.open-next/assets/_worker.js')\"",
+    "build:worker": "opennextjs-cloudflare build",
     "preview": "opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare deploy",
     "lint": "eslint src",

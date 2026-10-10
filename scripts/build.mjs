@@ -54,129 +54,25 @@ try {
   const assetsDir = path.resolve(".open-next/assets");
   const workerPath = path.resolve(".open-next/worker.js");
 
-  // 1. Generate Cloudflare Pages compatible _worker.js
-  if (fs.existsSync(workerPath)) {
-    const wrappedWorker = `import { handleCdnCgiImageRequest, handleImageRequest } from "./cloudflare/images.js";
-import { runWithCloudflareRequestContext } from "./cloudflare/init.js";
-import { maybeGetSkewProtectionResponse } from "./cloudflare/skew-protection.js";
-import { handler as middlewareHandler } from "./middleware/handler.mjs";
-
-export default {
-  async fetch(request, env, ctx) {
-    try {
-      return await runWithCloudflareRequestContext(request, env, ctx, async () => {
-        const response = maybeGetSkewProtectionResponse(request);
-        if (response) {
-          return response;
-        }
-        const url = new URL(request.url);
-        if (url.pathname.startsWith("/cdn-cgi/image/")) {
-          return handleCdnCgiImageRequest(url, env);
-        }
-        if (url.pathname === \`\${globalThis.__NEXT_BASE_PATH__ || ""}/_next/image\${globalThis.__TRAILING_SLASH__ ? "/" : ""}\`) {
-          return await handleImageRequest(url, request.headers, env);
-        }
-        const reqOrResp = await middlewareHandler(request, env, ctx);
-        if (reqOrResp instanceof Response) {
-          return reqOrResp;
-        }
-        const { handler } = await import("./server-functions/default/handler.mjs");
-        const res = await handler(reqOrResp, env, ctx, request.signal);
-        if (res.status >= 500 && request.method === "GET" && env?.ASSETS?.fetch) {
-          try {
-            const assetRes = await env.ASSETS.fetch(request);
-            if (assetRes && assetRes.status < 400) {
-              return assetRes;
-            }
-          } catch (e) {
-            console.error("[Fallback to ASSETS error]", e);
-          }
-        }
-        return res;
-      });
-    } catch (err) {
-      console.error("[FacultyOS Worker Runtime Exception]", err);
-      // Fallback: In Cloudflare Pages, attempt to serve the static asset if available
-      if (env?.ASSETS?.fetch && request.method === "GET") {
-        try {
-          const assetRes = await env.ASSETS.fetch(request);
-          if (assetRes && assetRes.status < 400) {
-            return assetRes;
-          }
-        } catch {}
-      }
-      return new Response(
-        \`FacultyOS Worker Exception:\\n\${err?.stack || err?.message || String(err)}\\n\\nURL: \${request.url}\\nMethod: \${request.method}\`,
-        {
-          status: 500,
-          headers: { "Content-Type": "text/plain; charset=utf-8" },
-        }
-      );
-    }
-  },
-};
-`;
-
-    if (fs.existsSync(assetsDir)) {
-      fs.writeFileSync(path.join(assetsDir, "_worker.js"), wrappedWorker, "utf-8");
-      console.log("✓ Created .open-next/assets/_worker.js with Pages error handler");
-    }
-    fs.writeFileSync(path.join(openNextDir, "_worker.js"), wrappedWorker, "utf-8");
-    console.log("✓ Created .open-next/_worker.js with Pages error handler");
-  }
-
-  // 2. Generate _routes.json so Cloudflare Pages routes dynamic paths to worker and serves static pages directly from edge CDN
-  const routesJson = {
-    version: 1,
-    include: [
-      "/api/*",
-      "/r/*",
-      "/c/*",
-      "/dashboard*",
-      "/inbox*",
-      "/courses*",
-      "/ledger*",
-      "/boundaries*",
-      "/requests/*",
-    ],
-    exclude: [
-      "/_next/static/*",
-      "/favicon.ico",
-      "/favicon.svg",
-      "/icon.svg",
-      "/robots.txt",
-      "/sitemap.xml",
-      "/manifest.webmanifest",
-    ],
-  };
-
+  // 1. Ensure assets directory is clean for Cloudflare Workers with Assets deployment
   if (fs.existsSync(assetsDir)) {
-    fs.writeFileSync(
-      path.join(assetsDir, "_routes.json"),
-      JSON.stringify(routesJson, null, 2),
-    );
-    console.log("✓ Created .open-next/assets/_routes.json");
-
-    fs.writeFileSync(
-      path.join(openNextDir, "_routes.json"),
-      JSON.stringify(routesJson, null, 2),
-    );
-    console.log("✓ Created .open-next/_routes.json");
-
-    // 3. Mirror static assets into .open-next root so whether Pages uses .open-next or .open-next/assets, both work!
-    const files = fs.readdirSync(assetsDir);
-    for (const file of files) {
-      const src = path.join(assetsDir, file);
-      const dest = path.join(openNextDir, file);
-      if (!fs.existsSync(dest)) {
-        try {
-          fs.cpSync(src, dest, { recursive: true });
-        } catch {
-          // ignore existing or symlinks
-        }
-      }
+    const legacyWorker = path.join(assetsDir, "_worker.js");
+    if (fs.existsSync(legacyWorker)) {
+      fs.rmSync(legacyWorker, { force: true });
+      console.log("✓ Removed legacy _worker.js from assets directory");
     }
-    console.log("✓ Mirrored assets into .open-next root directory");
+    const legacyRoutes = path.join(assetsDir, "_routes.json");
+    if (fs.existsSync(legacyRoutes)) {
+      fs.rmSync(legacyRoutes, { force: true });
+      console.log("✓ Removed legacy _routes.json from assets directory");
+    }
+    // Write .assetsignore to ensure Wrangler never attempts to upload worker/map files
+    fs.writeFileSync(
+      path.join(assetsDir, ".assetsignore"),
+      "_worker.js\n_routes.json\n*.map\n",
+      "utf-8"
+    );
+    console.log("✓ Configured .assetsignore in assets directory");
   }
 
   // 4. Post-patch all built worker and handler files in .open-next to ensure unexpected loadManifest doesn't crash
