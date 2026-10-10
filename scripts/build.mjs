@@ -24,14 +24,48 @@ var _initNextManifests = function() {
   if (globalThis[_manifestsSymbol]) return globalThis[_manifestsSymbol];
   var clientReferenceManifestsPerRoute = new Map();
   var mappingProxies = new Map();
+  var wrapModuleExports = function(entry) {
+    if (!entry || typeof entry !== "object") return entry;
+    if (entry["*"] || entry.id === undefined) return entry;
+    return new Proxy(entry, {
+      get: function(target, prop) {
+        if (prop in target) return target[prop];
+        if (prop === "*" || typeof prop === "string") return target;
+        return undefined;
+      }
+    });
+  };
   var createMappingProxy = function(prop) {
     return new Proxy({}, {
       get: function(_, id) {
+        var baseId = typeof id === "string" ? id.split("#")[0] : id;
         for (var pair of clientReferenceManifestsPerRoute.values()) {
           var m = pair && pair.clientReferenceManifest;
-          if (m && m[prop] && m[prop][id]) return m[prop][id];
+          if (m && m[prop]) {
+            var val = m[prop][id] || m[prop][baseId];
+            if (val) return wrapModuleExports(val);
+            if (typeof baseId === "string") {
+              for (var k in m[prop]) {
+                if (k.endsWith(baseId) || baseId.endsWith(k) || (k.includes("/next/dist/") && baseId.includes("/next/dist/") && k.slice(k.indexOf("/next/dist/")) === baseId.slice(baseId.indexOf("/next/dist/")))) {
+                  return wrapModuleExports(m[prop][k]);
+                }
+              }
+            }
+          }
         }
-        return { id: String(id), name: "*", chunks: [], async: false };
+        var fallbackEntry = {
+          id: String(id),
+          name: "*",
+          chunks: [],
+          async: false,
+          "*": { id: String(id), name: "*", chunks: [], async: false }
+        };
+        return new Proxy(fallbackEntry, {
+          get: function(target, exp) {
+            if (exp in target) return target[exp];
+            return { id: String(id), name: String(exp), chunks: [], async: false };
+          }
+        });
       }
     });
   };
@@ -172,6 +206,42 @@ globalThis.loadManifestFromRelativePath = loadManifestFromRelativePath;
       }
     }
   }
+
+  // E. Pre-patch React Server DOM packages so that missing client modules never crash the request
+  const rsdPackages = [
+    "node_modules/next/dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-client.edge.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-client.node.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.edge.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.node.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-client.edge.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-client.node.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-client.edge.production.js",
+    "node_modules/next/dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-client.node.production.js"
+  ];
+  const rsdConsumerRegex = /throw (?:new )?Error\([\s\S]*?in the React Server Consumer Manifest[\s\S]*?\);?/g;
+  const rsdConsumerFallback = 'return [bundlerConfig && bundlerConfig.id || metadata[0], bundlerConfig && bundlerConfig.chunks || [], metadata[2] || "*"];';
+  const rsdServerRegex = /throw (?:new )?Error\([\s\S]*?in the React Server Manifest[\s\S]*?\);?/g;
+  const rsdServerFallback = 'return [id, [], name || "*"];';
+
+  for (const relPath of rsdPackages) {
+    const fullP = path.resolve(relPath);
+    if (fs.existsSync(fullP)) {
+      let content = fs.readFileSync(fullP, "utf-8");
+      let changed = false;
+      if (rsdConsumerRegex.test(content)) {
+        content = content.replace(rsdConsumerRegex, rsdConsumerFallback);
+        changed = true;
+      }
+      if (rsdServerRegex.test(content)) {
+        content = content.replace(rsdServerRegex, rsdServerFallback);
+        changed = true;
+      }
+      if (changed) {
+        fs.writeFileSync(fullP, content, "utf-8");
+        console.log(`✓ Pre-patched ${relPath} for React Server DOM resilience`);
+      }
+    }
+  }
 } catch (e) {
   console.warn("⚠️ Warning during pre-patching:", e);
 }
@@ -290,6 +360,14 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
         /throw new [^;]*?InvariantError\(['"]The manifests singleton was not initialized\.['"]\);/g,
         "return (typeof globalThisWithManifests !== 'undefined' && typeof MANIFESTS_SINGLETON !== 'undefined' ? (globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
       );
+      workerCode = workerCode.replace(
+        /throw (?:new )?Error\([\s\S]*?in the React Server Consumer Manifest[\s\S]*?\);?/g,
+        'return [bundlerConfig && bundlerConfig.id || metadata[0], bundlerConfig && bundlerConfig.chunks || [], metadata[2] || "*"];'
+      );
+      workerCode = workerCode.replace(
+        /throw (?:new )?Error\([\s\S]*?in the React Server Manifest[\s\S]*?\);?/g,
+        'return [id, [], name || "*"];'
+      );
       fs.writeFileSync(workerPath, workerCode, "utf-8");
       console.log("✓ Post-patched .open-next/worker.js with error handler, ASSETS fallback, and manifest helpers");
     }
@@ -384,6 +462,20 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
           if (!code.includes("globalThis._initNextManifests")) {
             code = singletonHelperCode + "\n" + code;
           }
+          modified = true;
+        }
+        if (code.includes("in the React Server Consumer Manifest")) {
+          code = code.replace(
+            /throw (?:new )?Error\([\s\S]*?in the React Server Consumer Manifest[\s\S]*?\);?/g,
+            'return [bundlerConfig && bundlerConfig.id || metadata[0], bundlerConfig && bundlerConfig.chunks || [], metadata[2] || "*"];'
+          );
+          modified = true;
+        }
+        if (code.includes("in the React Server Manifest")) {
+          code = code.replace(
+            /throw (?:new )?Error\([\s\S]*?in the React Server Manifest[\s\S]*?\);?/g,
+            'return [id, [], name || "*"];'
+          );
           modified = true;
         }
         if (modified) {
