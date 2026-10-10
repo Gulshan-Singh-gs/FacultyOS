@@ -30,6 +30,9 @@ export async function getServerEnv(): Promise<FacultyOSEnv> {
   if (!envObj.DB && envObj.facultyos) {
     envObj.DB = envObj.facultyos;
   }
+  if (!envObj.NOTIFICATIONS && envObj.notifications) {
+    envObj.NOTIFICATIONS = envObj.notifications;
+  }
   return envObj as unknown as FacultyOSEnv;
 }
 

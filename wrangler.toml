@@ -23,6 +23,19 @@ database_name = "facultyos"
 database_id = "de9668a3-b0ec-4f33-ab75-bc5e17c42224"
 migrations_dir = "drizzle"
 
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "7a745a7585864c72b0bf23095c08f5e4"
+
+[[queues.producers]]
+binding = "NOTIFICATIONS"
+queue = "notifications"
+
+[[queues.producers]]
+binding = "notifications"
+queue = "notifications"
+
+
 
 
 
