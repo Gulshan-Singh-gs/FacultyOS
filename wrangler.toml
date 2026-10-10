@@ -7,6 +7,10 @@ compatibility_flags = ["nodejs_compat"]
 directory = ".open-next/assets"
 binding = "ASSETS"
 
+[vars]
+BETTER_AUTH_URL = "https://facultyos.gs-softwares.workers.dev"
+BETTER_AUTH_TRUSTED_ORIGINS = "https://facultyos.gs-softwares.workers.dev,https://*.workers.dev,https://facultyos.com,http://localhost:3000"
+
 # Bindings are configured directly in Cloudflare Dashboard:
 # Workers & Pages -> facultyos -> Settings -> Variables and Bindings:
 # - KV namespace: RATE_LIMIT
