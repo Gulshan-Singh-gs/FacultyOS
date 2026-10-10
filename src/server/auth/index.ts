@@ -55,6 +55,9 @@ export function createAuth(db: Db, secret?: string, baseURL?: string) {
         maxAge: 5 * 60,
       },
     },
+    onAPIError: {
+      throw: true,
+    },
     advanced: {
       cookiePrefix: "facultyos",
     },
@@ -63,6 +66,11 @@ export function createAuth(db: Db, secret?: string, baseURL?: string) {
 
 export async function getAuth() {
   const env = await getServerEnv();
+  if (!env.DB) {
+    throw new Error(
+      "Missing D1 Database binding 'DB'. In Cloudflare Dashboard, go to Workers & Pages -> facultyos -> Settings -> Variables and Bindings -> Add D1 Database binding with Variable name 'DB'."
+    );
+  }
   const db = createDb(env.DB);
   return createAuth(db, env.BETTER_AUTH_SECRET, (env as any).BETTER_AUTH_URL);
 }
