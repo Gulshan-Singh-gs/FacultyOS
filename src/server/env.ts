@@ -14,15 +14,22 @@ export interface FacultyOSEnv {
 }
 
 export async function getServerEnv(): Promise<FacultyOSEnv> {
+  let envObj: any;
   try {
     const { getCloudflareContext } = await import("@opennextjs/cloudflare");
     const ctx = await getCloudflareContext({ async: true });
     if (ctx?.env) {
-      return ctx.env as unknown as FacultyOSEnv;
+      envObj = { ...ctx.env };
     }
   } catch {
     // running outside Cloudflare edge worker (e.g. test or build)
   }
-  return process.env as unknown as FacultyOSEnv;
+  if (!envObj) {
+    envObj = { ...process.env };
+  }
+  if (!envObj.DB && envObj.facultyos) {
+    envObj.DB = envObj.facultyos;
+  }
+  return envObj as unknown as FacultyOSEnv;
 }
 
