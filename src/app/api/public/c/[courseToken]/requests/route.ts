@@ -17,8 +17,8 @@ import {
 import { evaluatePolicies } from "@/server/services/policy-engine/engine";
 import type { Policy, RequestPayload } from "@/server/services/policy-engine/types";
 import { nanoid } from "nanoid";
-import { eq } from "drizzle-orm";
-import type { FacultyOSEnv } from "@/server/env";
+import { eq, and } from "drizzle-orm";
+import { getServerEnv } from "@/server/env";
 
 export const dynamic = "force-dynamic";
 
@@ -26,24 +26,52 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ courseToken: string }> },
 ) {
-  const env = process.env as unknown as FacultyOSEnv;
+  const env = await getServerEnv();
   const { courseToken } = await ctx.params;
   const db = createDb(env.DB);
 
-  /* 1. Rate limit (KV sliding window — 10 submissions per IP per 10 min) */
-  const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
-  const key = `rl:intake:${ip}`;
-  const count = Number((await env.RATE_LIMIT.get(key)) ?? 0);
-  if (count >= 10) {
-    return NextResponse.json(
-      { error: "Too many submissions. Try again later." },
-      { status: 429 },
-    );
+  /* 1. Rate limiting via Cloudflare KV (Sliding Window — max 10/IP/10m, max 30/course/1h) */
+  const ip =
+    req.headers.get("cf-connecting-ip") ??
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    "unknown";
+  const ipKey = `rl:intake:ip:${ip}`;
+  const courseKey = `rl:intake:course:${courseToken}`;
+
+  if (env.RATE_LIMIT) {
+    const ipCount = Number((await env.RATE_LIMIT.get(ipKey)) ?? 0);
+    if (ipCount >= 10) {
+      return NextResponse.json(
+        { error: "Too many submissions. Please wait before submitting again." },
+        { status: 429 },
+      );
+    }
+
+    const courseCount = Number((await env.RATE_LIMIT.get(courseKey)) ?? 0);
+    if (courseCount >= 30) {
+      return NextResponse.json(
+        { error: "Too many submissions. Please wait before submitting again." },
+        { status: 429 },
+      );
+    }
+
+    await Promise.all([
+      env.RATE_LIMIT.put(ipKey, String(ipCount + 1), { expirationTtl: 600 }),
+      env.RATE_LIMIT.put(courseKey, String(courseCount + 1), { expirationTtl: 3600 }),
+    ]);
   }
-  await env.RATE_LIMIT.put(key, String(count + 1), { expirationTtl: 600 });
 
   /* 2. Validate input (Zod blocks medical categories by design — Hard Rule 1) */
-  const rawBody = (await req.json()) as Record<string, unknown>;
+  let rawBody: Record<string, unknown>;
+  try {
+    rawBody = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid JSON payload." },
+      { status: 400 },
+    );
+  }
+
   let input: AnyIntakeRequestInput;
   if (!rawBody.requestType || rawBody.requestType === "extension") {
     const extParsed = ExtensionRequestSchema.safeParse(rawBody);
@@ -70,19 +98,25 @@ export async function POST(
 
   /* 4. Load active policies and re-validate stored JSON before trusting it */
   const rows = await db.query.policies.findMany({
-    where: eq(policies.courseId, course.id),
+    where: and(eq(policies.courseId, course.id), eq(policies.isActive, true)),
   });
   const safePolicies: Policy[] = rows
-    .map((r) => ({
-      id: r.id,
-      policyType: r.policyType as Policy["policyType"],
-      priority: r.priority,
-      conditions: JSON.parse(r.conditionsJson),
-      actions: JSON.parse(r.actionsJson),
-      version: r.version,
-      isActive: r.isActive,
-    }))
-    .filter((p) => PolicySchema.omit({ name: true }).safeParse(p).success);
+    .map((r) => {
+      try {
+        return {
+          id: r.id,
+          policyType: r.policyType as Policy["policyType"],
+          priority: r.priority,
+          conditions: JSON.parse(r.conditionsJson),
+          actions: JSON.parse(r.actionsJson),
+          version: r.version,
+          isActive: r.isActive,
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter((p): p is Policy => p !== null && PolicySchema.omit({ name: true }).safeParse(p).success);
 
   /* 5. Build enriched payload and evaluate deterministically */
   let daysBeforeDeadline = 0;
@@ -106,10 +140,14 @@ export async function POST(
   const decision = evaluatePolicies(safePolicies, payload);
 
   /* 6. Persist identity + request + audit event */
-  const emailHash = await sha256(input.studentEmail.toLowerCase());
+  const emailHash = await sha256(input.studentEmail.toLowerCase().trim());
   let identity = await db.query.studentIdentities.findFirst({
-    where: (t) => eq(t.emailHash, emailHash),
+    where: and(
+      eq(studentIdentities.emailHash, emailHash),
+      eq(studentIdentities.courseId, course.id),
+    ),
   });
+
   if (!identity) {
     const id = nanoid();
     await db.insert(studentIdentities).values({
@@ -160,12 +198,19 @@ export async function POST(
     }),
   });
 
-  /* 7. Notify professor queue (boundaries respected in Phase 3) */
-  await env.NOTIFICATIONS.send({
-    type: "request_created",
-    requestId,
-    courseId: course.id,
-  });
+  /* 7. Push notification to queue without blocking HTTP response */
+  try {
+    if (env.NOTIFICATIONS?.send) {
+      await env.NOTIFICATIONS.send({
+        type: "request_created",
+        requestId,
+        courseId: course.id,
+      });
+    }
+  } catch (err) {
+    // Graceful queue deferral
+    console.warn("Queue push notification deferred:", err);
+  }
 
   return NextResponse.json(
     {

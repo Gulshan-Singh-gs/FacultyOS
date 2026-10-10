@@ -193,13 +193,13 @@ pnpm db:migrate:local          # when schema changed
   - Tests: Zod rejects medical categories; regrade form requires rubric fields.
   - Commit: `feat(portal): intake forms`.
 
-- [ ] **T2.7 Public intake API**
+- [x] **T2.7 Public intake API**
   - Goal: `POST /api/public/c/[courseToken]/requests`: rate limit (KV), Zod, course resolve by hash, engine evaluate, identity upsert (email hash), request + event insert, queue notify; response includes `requestToken` + status + plain-language message.
   - Refs: `PRD-BRD-TRD.md §TRD-3, §TRD-5`.
   - Tests: integration — auto-approve path, manual path, rate-limit 429 path.
   - Commit: `feat(requests): public intake api`.
 
-- [ ] **T2.8 Request status page**
+- [x] **T2.8 Request status page**
   - Goal: `/r/[requestToken]` read-only status + decision reason (policy-cited, student-safe language).
   - Refs: `UI.md §Screen 7 (submission result)`.
   - Commit: `feat(portal): status page`.

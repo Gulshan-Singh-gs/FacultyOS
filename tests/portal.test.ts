@@ -11,30 +11,57 @@ import {
 import { POST } from "@/app/api/public/c/[courseToken]/requests/route";
 import { CATEGORIES } from "@/components/portal/category-explorer";
 
-const mockFindFirst = vi.fn();
+const mockFindFirstCourse = vi.fn();
+const mockFindManyPolicies = vi.fn();
+const mockFindFirstIdentity = vi.fn();
+const mockInsertValues = vi.fn().mockResolvedValue([{ id: "mock_id" }]);
 
 vi.mock("@/server/db", () => ({
   createDb: () => ({
     query: {
       courses: {
-        findFirst: (...args: unknown[]) => mockFindFirst(...args),
+        findFirst: (...args: unknown[]) => mockFindFirstCourse(...args),
       },
       policies: {
-        findMany: vi.fn().mockResolvedValue([]),
+        findMany: (...args: unknown[]) => mockFindManyPolicies(...args),
       },
       studentIdentities: {
-        findFirst: vi.fn().mockResolvedValue(null),
+        findFirst: (...args: unknown[]) => mockFindFirstIdentity(...args),
       },
     },
     insert: vi.fn().mockReturnValue({
-      values: vi.fn().mockResolvedValue([{ id: "mock_id" }]),
+      values: (...args: unknown[]) => mockInsertValues(...args),
     }),
   }),
 }));
 
-describe("T2.5 & T2.6 Student Portal & Intake Validations", () => {
+const mockKvGet = vi.fn();
+const mockKvPut = vi.fn();
+const mockQueueSend = vi.fn();
+
+const mockEnv = {
+  DB: {},
+  RATE_LIMIT: {
+    get: (...args: unknown[]) => mockKvGet(...args),
+    put: (...args: unknown[]) => mockKvPut(...args),
+  },
+  NOTIFICATIONS: {
+    send: (...args: unknown[]) => mockQueueSend(...args),
+  },
+};
+
+vi.mock("@/server/env", () => ({
+  getServerEnv: vi.fn().mockImplementation(() => Promise.resolve(mockEnv)),
+}));
+
+describe("T2.7 & T2.8 Student Portal, Intake API & Status Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockKvGet.mockResolvedValue("0");
+    mockKvPut.mockResolvedValue(undefined);
+    mockQueueSend.mockResolvedValue(undefined);
+    mockFindManyPolicies.mockResolvedValue([]);
+    mockFindFirstIdentity.mockResolvedValue(null);
   });
 
   describe("Hard Rule 1: Medical & Mental Health Category Rejection", () => {
@@ -239,25 +266,180 @@ describe("T2.5 & T2.6 Student Portal & Intake Validations", () => {
     });
   });
 
-  describe("Integration: Public Request API & Invalid Token 404 Path", () => {
-    it("returns 404 when course token is invalid or does not exist", async () => {
-      const mockEnv = {
-        DB: {
-          prepare: vi.fn(),
-        },
-        RATE_LIMIT: {
-          get: vi.fn().mockResolvedValue("0"),
-          put: vi.fn().mockResolvedValue(undefined),
-        },
-        NOTIFICATIONS: {
-          send: vi.fn(),
-        },
-      };
+  describe("T2.7 Public Intake API: Integration Gates", () => {
+    it("(a) executes successful auto-approve path when syllabus policy matches", async () => {
+      mockFindFirstCourse.mockResolvedValueOnce({
+        id: "crs_active_123",
+        status: "active",
+      });
 
-      const originalEnv = process.env;
-      process.env = { ...originalEnv, ...mockEnv } as any;
+      // Active extension policy: when daysBeforeDeadline >= 2 -> auto approve
+      mockFindManyPolicies.mockResolvedValueOnce([
+        {
+          id: "pol_ext_auto",
+          policyType: "extension",
+          priority: 1,
+          conditionsJson: JSON.stringify([
+            { field: "daysBeforeDeadline", operator: "gte", value: 2 },
+          ]),
+          actionsJson: JSON.stringify([
+            { type: "auto_approve" },
+          ]),
+          version: 1,
+          isActive: true,
+        },
+      ]);
 
-      mockFindFirst.mockResolvedValueOnce(null);
+      const threeDaysAhead = new Date(Date.now() + 3 * 86_400_000);
+      const fourDaysAhead = new Date(Date.now() + 4 * 86_400_000);
+
+      const req = new Request("http://localhost/api/public/c/course_token_abc/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestType: "extension",
+          studentName: "Maya Lin",
+          studentEmail: "maya@university.edu",
+          assignmentName: "Problem Set 5",
+          currentDeadline: threeDaysAhead.toISOString(),
+          requestedNewDeadline: fourDaysAhead.toISOString(),
+          reasonCategory: "academic_conflict",
+          details: "Midterm overlap with Computer Systems on Thursday.",
+          hasDocumentation: false,
+          turnstileToken: "cf_verified",
+        }),
+      });
+
+      const res = await POST(req, {
+        params: Promise.resolve({ courseToken: "course_token_abc" }),
+      });
+
+      expect(res.status).toBe(201);
+      const json = (await res.json()) as { requestToken: string; status: string; message: string };
+      expect(json.status).toBe("auto_approved");
+      expect(json.message).toContain("approved per course policy");
+      expect(json.requestToken).toBeDefined();
+      expect(mockQueueSend).toHaveBeenCalledTimes(1);
+    });
+
+    it("(b) routes to manual review path when no policy matches", async () => {
+      mockFindFirstCourse.mockResolvedValueOnce({
+        id: "crs_active_123",
+        status: "active",
+      });
+
+      // No active policies exist for this course
+      mockFindManyPolicies.mockResolvedValueOnce([]);
+
+      const twoDaysAhead = new Date(Date.now() + 2 * 86_400_000);
+      const threeDaysAhead = new Date(Date.now() + 3 * 86_400_000);
+
+      const req = new Request("http://localhost/api/public/c/course_token_abc/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestType: "extension",
+          studentName: "Maya Lin",
+          studentEmail: "maya@university.edu",
+          assignmentName: "Problem Set 5",
+          currentDeadline: twoDaysAhead.toISOString(),
+          requestedNewDeadline: threeDaysAhead.toISOString(),
+          reasonCategory: "academic_conflict",
+          details: "Midterm overlap with Computer Systems on Thursday.",
+          hasDocumentation: false,
+          turnstileToken: "cf_verified",
+        }),
+      });
+
+      const res = await POST(req, {
+        params: Promise.resolve({ courseToken: "course_token_abc" }),
+      });
+
+      expect(res.status).toBe(201);
+      const json = (await res.json()) as { requestToken: string; status: string; message: string };
+      expect(json.status).toBe("manual_review");
+      expect(json.message).toBe("Your request was submitted for review.");
+      expect(mockQueueSend).toHaveBeenCalledTimes(1);
+    });
+
+    it("(c1) returns calm 429 when IP rate limit window is exceeded", async () => {
+      // Mock IP count >= 10
+      mockKvGet.mockImplementation((key: string) => {
+        if (typeof key === "string" && key.startsWith("rl:intake:ip:")) {
+          return Promise.resolve("10");
+        }
+        return Promise.resolve("0");
+      });
+
+      const req = new Request("http://localhost/api/public/c/course_token_abc/requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "cf-connecting-ip": "192.168.1.100",
+        },
+        body: JSON.stringify({
+          requestType: "extension",
+          studentName: "Maya Lin",
+          studentEmail: "maya@university.edu",
+          assignmentName: "Problem Set 5",
+          currentDeadline: new Date(Date.now() + 86400000).toISOString(),
+          requestedNewDeadline: new Date(Date.now() + 172800000).toISOString(),
+          reasonCategory: "academic_conflict",
+          details: "Valid details meeting min 20 chars.",
+          hasDocumentation: false,
+          turnstileToken: "cf_verified",
+        }),
+      });
+
+      const res = await POST(req, {
+        params: Promise.resolve({ courseToken: "course_token_abc" }),
+      });
+
+      expect(res.status).toBe(429);
+      const json = (await res.json()) as { error?: string };
+      expect(json.error).toBe("Too many submissions. Please wait before submitting again.");
+    });
+
+    it("(c2) returns calm 429 when course token rate limit window is exceeded", async () => {
+      // Mock Course token count >= 30
+      mockKvGet.mockImplementation((key: string) => {
+        if (typeof key === "string" && key.startsWith("rl:intake:course:")) {
+          return Promise.resolve("30");
+        }
+        return Promise.resolve("0");
+      });
+
+      const req = new Request("http://localhost/api/public/c/course_token_abc/requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "cf-connecting-ip": "10.0.0.1",
+        },
+        body: JSON.stringify({
+          requestType: "extension",
+          studentName: "Maya Lin",
+          studentEmail: "maya@university.edu",
+          assignmentName: "Problem Set 5",
+          currentDeadline: new Date(Date.now() + 86400000).toISOString(),
+          requestedNewDeadline: new Date(Date.now() + 172800000).toISOString(),
+          reasonCategory: "academic_conflict",
+          details: "Valid details meeting min 20 chars.",
+          hasDocumentation: false,
+          turnstileToken: "cf_verified",
+        }),
+      });
+
+      const res = await POST(req, {
+        params: Promise.resolve({ courseToken: "course_token_abc" }),
+      });
+
+      expect(res.status).toBe(429);
+      const json = (await res.json()) as { error?: string };
+      expect(json.error).toBe("Too many submissions. Please wait before submitting again.");
+    });
+
+    it("(d1) returns 404 when course token is invalid or does not exist", async () => {
+      mockFindFirstCourse.mockResolvedValueOnce(null);
 
       const req = new Request("http://localhost/api/public/c/invalid_token_123/requests", {
         method: "POST",
@@ -283,24 +465,10 @@ describe("T2.5 & T2.6 Student Portal & Intake Validations", () => {
       expect(res.status).toBe(404);
       const json = (await res.json()) as { error?: string };
       expect(json.error).toBe("Course not found.");
-
-      process.env = originalEnv;
     });
 
-    it("returns 404 when course is archived", async () => {
-      const mockEnv = {
-        DB: { prepare: vi.fn() },
-        RATE_LIMIT: {
-          get: vi.fn().mockResolvedValue("0"),
-          put: vi.fn().mockResolvedValue(undefined),
-        },
-        NOTIFICATIONS: { send: vi.fn() },
-      };
-
-      const originalEnv = process.env;
-      process.env = { ...originalEnv, ...mockEnv } as any;
-
-      mockFindFirst.mockResolvedValueOnce({
+    it("(d2) returns 404 when course is archived", async () => {
+      mockFindFirstCourse.mockResolvedValueOnce({
         id: "crs_archived",
         status: "archived", // Archived course must be rejected
       });
@@ -329,8 +497,6 @@ describe("T2.5 & T2.6 Student Portal & Intake Validations", () => {
       expect(res.status).toBe(404);
       const json = (await res.json()) as { error?: string };
       expect(json.error).toBe("Course not found.");
-
-      process.env = originalEnv;
     });
   });
 });
