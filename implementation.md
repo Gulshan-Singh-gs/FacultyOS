@@ -257,7 +257,7 @@ binding = "RATE_LIMIT"
 id = "REPLACE_WITH_KV_ID"
 
 [[r2_buckets]]
-binding = "ASSETS"
+binding = "ATTACHMENTS"
 bucket_name = "facultyos-assets"
 
 [[queues.producers]]
@@ -300,7 +300,7 @@ export default defineConfig({
 export interface FacultyOSEnv {
   DB: D1Database;
   RATE_LIMIT: KVNamespace;
-  ASSETS: R2Bucket;
+  ATTACHMENTS: R2Bucket;
   NOTIFICATIONS: Queue;
   AI_JOBS: Queue;
   AI: Ai;

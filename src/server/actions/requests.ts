@@ -127,7 +127,7 @@ export async function uploadAttachmentAction(formData: FormData) {
     fileSize: file.size,
     category,
     fileBuffer: arrayBuffer,
-    r2Bucket: env.ASSETS,
+    r2Bucket: env.ATTACHMENTS ?? env.ASSETS,
     actorType: "professor",
     callerProfileId: profile.id,
   });

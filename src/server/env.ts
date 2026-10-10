@@ -1,7 +1,8 @@
 export interface FacultyOSEnv {
   DB: D1Database;
   RATE_LIMIT: KVNamespace;
-  ASSETS: R2Bucket;
+  ATTACHMENTS: R2Bucket;
+  ASSETS?: R2Bucket;
   NOTIFICATIONS: Queue;
   AI_JOBS: Queue;
   AI: Ai;

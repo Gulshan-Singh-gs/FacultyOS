@@ -25,8 +25,9 @@ export async function GET(
     const { attachment } = result;
 
     // Check Cloudflare R2 bucket for the object
-    if (env.ASSETS && typeof env.ASSETS.get === "function") {
-      const object = await env.ASSETS.get(attachment.r2Key);
+    const r2Bucket = env.ATTACHMENTS ?? env.ASSETS;
+    if (r2Bucket && typeof r2Bucket.get === "function") {
+      const object = await r2Bucket.get(attachment.r2Key);
       if (object) {
         const headers = new Headers();
         headers.set("Content-Type", attachment.mimeType);
