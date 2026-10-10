@@ -22,9 +22,7 @@
 | **All (AppShell)** | Topbar: Mobile menu toggle | `Menu` | `1.75` | 20px | Mobile navigation |
 | **All (AppShell)** | Topbar: Close mobile drawer | `X` | `1.75` | 20px | Accessible close trigger |
 | **All (AppShell)** | Topbar: New Course CTA | `Plus` | `2.0` | 14px | Micro-action affordance |
-| **Screen 1 (Landing)** | Feature Cards | `Zap`, `Moon`, `BarChart3` | `1.75` | 20px | Engine, Shield, Ledger |
-| **Screen 3 (Dashboard)** | Empty State Illustration | `BookOpen` | `1.75` | 32px | Non-alarming onboarding CTA |
-| **Screen 5 (Course Detail)** | Portal Card Actions | `Copy`, `RefreshCw`, `Archive` | `1.75` | 16px | Link copy, rotate, archive |
+| **Screen 1 (Marketing / Landing)** | Sections S1–S14 | `Shield`, `Zap`, `Clock`, `BookOpen`, `FileCheck2`, `Sparkles`, `Sliders`, `ArrowRight`, `Check`, `X`, `ChevronDown`, `Layers`, `Scale`, `GraduationCap`, `Inbox`, `AlertCircle`, `ExternalLink` | `1.75` | 16–24px | Full Lucide coverage; zero emoji in rendered DOM |
 | **Screen 6 (Policy Builder)** | When/Then Controls (Phase 2) | `Plus`, `Trash2`, `Sliders` | `1.75` | 16px | Rule condition builder |
 | **Screen 4 (Inbox Detail)** | Queue & Triage (Phase 2) | `CheckCircle2`, `XCircle`, `AlertCircle` | `1.75` | 16px | Decision status affordances |
 
@@ -32,5 +30,6 @@
 
 ## 2. Consistency Guarantees
 - Zero ad-hoc SVG icon styling.
-- All icons rendered via tree-shakeable `lucide-react` imports.
+- Zero raw Unicode emoji glyphs in the DOM across all marketing and application surfaces (Lucide React icons only).
+- All icons rendered via tree-shakeable `lucide-react` imports with standard `strokeWidth={1.75}`.
 - Contrast and aria-labels maintained on all icon-only buttons for WCAG AA compliance.

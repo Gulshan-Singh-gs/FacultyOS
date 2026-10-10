@@ -321,9 +321,9 @@ pnpm db:migrate:local          # when schema changed
   - Refs: `UI.md §Screen 13, §29`.
   - Commit: `feat(billing): ui`.
 
-- [ ] **T4.7 Marketing site**
-  - Goal: landing + pricing pages per `UI.md §Screen 1`; hero, problem/solution, privacy section, pricing table.
-  - Commit: `feat(marketing): landing and pricing`.
+- [x] **T4.7 Marketing site (T4.7-REBUILD)**
+  - Goal: landing + pricing pages per `UI.md §Screen 1`; hero, problem/solution, privacy section, pricing table, 12-layer optimization stack (SEO, AEO, GEO, CWV, a11y, simulator).
+  - Commit: `feat(marketing): rebuild landing page with 12-layer optimization`.
 
 - [ ] **T4.8 Security hardening pass**
   - Goal: audit checklist — rate limits on all public routes, Turnstile on all public forms, IDOR scan (every query profile-scoped), secret scan, CORS/CSP headers, backup cron verified.

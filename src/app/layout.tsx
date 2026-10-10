@@ -13,9 +13,42 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FacultyOS | The Operating System for Professors",
+  metadataBase: new URL("https://facultyos.com"),
+  title: {
+    default: "FacultyOS — Automate Student Requests & Protect Your Time",
+    template: "%s | FacultyOS",
+  },
   description:
-    "Automate student requests, enforce syllabus policies, protect your time, and document your career.",
+    "FacultyOS turns course syllabi into deterministic policy engines that triage extensions, regrades, and meetings instantly. Start free for 1 course forever.",
+  keywords: [
+    "FacultyOS",
+    "syllabus policy engine",
+    "student request triage",
+    "higher ed automation",
+    "regrade defense",
+    "faculty workload manager",
+    "FERPA compliant grading",
+  ],
+  authors: [{ name: "FacultyOS Team" }],
+  creator: "FacultyOS",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://facultyos.com",
+    title: "FacultyOS — Automate Student Requests & Protect Your Time",
+    description:
+      "Deterministic syllabus rules that triage student extensions, regrades, and meetings instantly with zero medical data collection.",
+    siteName: "FacultyOS",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FacultyOS — Automate Student Requests & Protect Your Time",
+    description:
+      "Deterministic syllabus rules that triage student extensions, regrades, and meetings instantly with zero medical data collection.",
+  },
+  alternates: {
+    canonical: "/",
+  },
 };
 
 export default function RootLayout({

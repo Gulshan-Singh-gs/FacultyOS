@@ -1,0 +1,32 @@
+# FacultyOS
+
+> FacultyOS is a privacy-first operations platform for university professors. It converts course syllabus policies into deterministic rules that automatically triage student requests such as extensions, regrades, and meetings, while protecting faculty time and tracking service evidence for annual reviews.
+
+## Core Entity Facts
+- **Product Name:** FacultyOS
+- **Category:** Higher Education Operations / Faculty Workload Management
+- **Target Audience:** University professors, instructors, teaching assistants, and academic department chairs.
+- **Key Differentiator:** 100% deterministic rule engine. Never uses generative AI to approve or deny academic requests.
+- **Privacy Architecture:** Zero medical or health data collection. Student access via ephemeral hashed tokens without account creation. Strict FERPA data minimization.
+- **Infrastructure:** Modular monolith deployed on Cloudflare Workers edge runtime with serverless Cloudflare D1 (SQLite).
+
+## Primary Features
+1. **Deterministic Policy Engine:** Evaluates student request parameters (advance notice, deadlines, rubric items) against syllabus rules with immutable audit snapshots.
+2. **Boundary & Weekend Shield:** Automatically queues non-urgent late-night and weekend communications for official working hours (09:00–18:00).
+3. **Regrade Defense Workflow:** Mandates specific rubric item citations and student self-analysis before allowing grade appeal submissions.
+4. **Career & Service Ledger:** Automatically catalogs uncompensated mentoring, committee, and advising hours for tenure dossier and annual appraisal exports.
+5. **ERP Companion:** Coexists alongside Canvas, Blackboard, or Banner by managing inbound conversational triage and exporting clean CSV records.
+
+## Pricing
+- **Individual:** Free forever for 1 active course with 5 deterministic policies.
+- **Professor Pro:** ₹299 per month or ₹1,499 per semester for up to 20 courses and full career ledger reporting.
+- **Department:** ₹24,999 per year for up to 200 courses across an academic department.
+
+## Important URLs
+- Homepage: https://facultyos.com/
+- Pricing: https://facultyos.com/pricing
+- Security & FERPA: https://facultyos.com/security
+- Privacy Policy: https://facultyos.com/privacy
+- Terms of Service: https://facultyos.com/terms
+- Changelog: https://facultyos.com/changelog
+- Full Knowledgebase: https://facultyos.com/llms-full.txt

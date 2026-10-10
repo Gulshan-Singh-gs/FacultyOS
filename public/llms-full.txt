@@ -1,0 +1,26 @@
+# FacultyOS — Complete Machine Knowledgebase (llms-full.txt)
+
+## Executive Summary
+FacultyOS is an academic workflow operating system engineered specifically for higher education faculty. Its purpose is to arrest the administrative burden placed upon professors by repetitive inbound student requests, unclear syllabus policies, and uncompensated service expectations.
+
+## Guiding Guardrails & Hard Rules
+1. **Hard Rule 1 (Medical & Mental Health Data Block):** FacultyOS explicitly forbids the intake, storage, or processing of medical diagnoses, doctor's notes, disability records, or mental health documentation. When a student indicates an illness, the system displays a non-punitive university health & student support redirect banner.
+2. **Hard Rule 2 (AI Separation):** Artificial intelligence is strictly prohibited from executing automated academic approvals or denials. All automated actions are driven exclusively by deterministic boolean and numeric comparison rules defined in syllabus policies. AI may only draft contextual suggestion notes for human faculty review.
+3. **Hard Rule 5 (Multi-Tenant Course Isolation):** Every database mutation and query scopes strictly to the authenticated professor's profile ID (`professor_profiles.id`). All student portal URLs resolve through SHA-256 hashed access tokens (`accessTokenHash`), preventing cross-tenant enumeration.
+4. **Hard Rule 8 (Decision Explainability):** Every automated decision captures an immutable policy snapshot (`policySnapshotJson`) containing the exact rule version, conditions evaluated, and plain-language justification presented to the student.
+
+## Architecture & Technology Stack
+- **Edge Monolith:** Next.js App Router running on Cloudflare Workers via `@opennextjs/cloudflare`.
+- **Database:** Serverless Cloudflare D1 with Drizzle ORM and Drizzle Kit migrations.
+- **Session Auth:** Better Auth with secure HTTP-only cookies (`facultyos_session`).
+- **Design Tokens:** NeuGlass Premium — combining Neumorphic matte surfaces (`.card-neu`) with Liquid Glass overlays (`.glass-panel`) in light and dark modes.
+
+## Pricing & Plan Limits
+- **Free Tier:** ₹0 / month. Max 1 active course, 5 deterministic policies.
+- **Professor Pro:** ₹299 / month or ₹1,499 / semester. Max 20 active courses, 50 policies per course, career ledger, dossier PDF exports.
+- **Department Tier:** ₹24,999 / year. Max 200 active courses across department faculty, institutional SLA reporting.
+
+## Frequently Asked Questions
+- **Q: Does FacultyOS replace Canvas/Blackboard?** No, it serves as an intelligent front-door filter for student communications, producing clean CSV exports for LMS entry.
+- **Q: Do students need to create accounts?** No, students access portals via course tokens and receive magic link email status tokens.
+- **Q: What happens if a request matches no policy?** It falls back safely to manual review by the professor.
