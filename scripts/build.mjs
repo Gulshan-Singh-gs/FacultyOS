@@ -9,7 +9,11 @@ const isCloudflare = process.env.CF_PAGES === "1" || process.env.CI === "true" |
 
 try {
   console.log("Executing OpenNext Cloudflare adapter build...");
-  execSync("npx opennextjs-cloudflare build --config wrangler.toml.bak", { stdio: "inherit" });
+  try {
+    execSync("pnpm exec opennextjs-cloudflare build --config wrangler.toml.bak", { stdio: "inherit" });
+  } catch {
+    execSync("npx opennextjs-cloudflare build --config wrangler.toml.bak", { stdio: "inherit" });
+  }
 
   const openNextDir = path.resolve(".open-next");
   const assetsDir = path.resolve(".open-next/assets");
