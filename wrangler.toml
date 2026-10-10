@@ -21,10 +21,6 @@ bucket_name = "facultyos-assets"
 queue = "notifications"
 binding = "NOTIFICATIONS"
 
-[[queues.consumers]]
-queue = "notifications"
-max_batch_size = 10
-
 [[queues.producers]]
 queue = "ai-jobs"
 binding = "AI_JOBS"
