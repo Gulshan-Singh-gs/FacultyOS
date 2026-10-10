@@ -18,6 +18,63 @@ console.log("=== Building FacultyOS for Cloudflare Deployment ===");
 const isWindows = process.platform === "win32";
 const isCloudflare = process.env.CF_PAGES === "1" || process.env.CI === "true" || !isWindows;
 
+const singletonHelperCode = `
+var _manifestsSymbol = Symbol.for("next.server.manifests");
+var _initNextManifests = function() {
+  if (globalThis[_manifestsSymbol]) return globalThis[_manifestsSymbol];
+  var clientReferenceManifestsPerRoute = new Map();
+  var mappingProxies = new Map();
+  var createMappingProxy = function(prop) {
+    return new Proxy({}, {
+      get: function(_, id) {
+        for (var pair of clientReferenceManifestsPerRoute.values()) {
+          var m = pair && pair.clientReferenceManifest;
+          if (m && m[prop] && m[prop][id]) return m[prop][id];
+        }
+        return { id: String(id), name: "*", chunks: [], async: false };
+      }
+    });
+  };
+  var proxiedClientReferenceManifest = new Proxy({}, {
+    get: function(_, prop) {
+      if (prop === "moduleLoading" || prop === "entryCSSFiles" || prop === "entryJSFiles") {
+        for (var pair of clientReferenceManifestsPerRoute.values()) {
+          var m = pair && pair.clientReferenceManifest;
+          if (m && m[prop]) return m[prop];
+        }
+        return {};
+      }
+      if (prop === "clientModules" || prop === "rscModuleMapping" || prop === "edgeRscModuleMapping" || prop === "ssrModuleMapping" || prop === "edgeSSRModuleMapping") {
+        var proxy = mappingProxies.get(prop);
+        if (!proxy) {
+          proxy = createMappingProxy(prop);
+          mappingProxies.set(prop, proxy);
+        }
+        return proxy;
+      }
+      for (var pair of clientReferenceManifestsPerRoute.values()) {
+        var m = pair && pair.clientReferenceManifest;
+        if (m && m[prop]) return m[prop];
+      }
+      return {};
+    }
+  });
+  var singleton = {
+    clientReferenceManifestsPerRoute: clientReferenceManifestsPerRoute,
+    proxiedClientReferenceManifest: proxiedClientReferenceManifest,
+    rscModuleMappingForUseCache: proxiedClientReferenceManifest,
+    serverActionsManifest: { node: {}, edge: {}, encryptionKey: "" },
+    serverModuleMap: new Proxy({}, {
+      get: function(_, id) { return { id: String(id), name: "*", chunks: [], async: false }; }
+    })
+  };
+  globalThis[_manifestsSymbol] = singleton;
+  return singleton;
+};
+globalThis._initNextManifests = _initNextManifests;
+try { _initNextManifests(); } catch (e) {}
+`;
+
 // 0. Pre-patch plugins and Next.js base-server for error transparency and Next 16 Turbopack compatibility
 try {
   // A. Pre-patch load-manifest plugin
@@ -113,6 +170,50 @@ globalThis.loadManifestFromRelativePath = loadManifestFromRelativePath;
         fs.writeFileSync(p, content, "utf-8");
         console.log(`✓ Pre-patched ${path.relative(process.cwd(), p)} with global manifest helper definitions`);
       }
+    }
+  }
+
+  // E. Pre-patch Next.js manifests-singleton to provide fallback singleton when uninitialized
+  const manifestsSingletonCjs = path.resolve("node_modules/next/dist/server/app-render/manifests-singleton.js");
+  const manifestsSingletonEsm = path.resolve("node_modules/next/dist/esm/server/app-render/manifests-singleton.js");
+  for (const p of [manifestsSingletonCjs, manifestsSingletonEsm]) {
+    if (fs.existsSync(p)) {
+      let content = fs.readFileSync(p, "utf-8");
+      if (!content.includes("globalThis._initNextManifests")) {
+        content = singletonHelperCode + "\n" + content;
+      }
+      content = content.replace(
+        /throw new [^;]*?InvariantError\(['"]The manifests singleton was not initialized\.['"]\);/g,
+        "manifestSingleton = globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests();"
+      );
+      content = content.replace(
+        /throw new [^;]*?InvariantError\(`The client reference manifest for route [^`]*? does not exist\.`\);/g,
+        "return {};"
+      );
+      fs.writeFileSync(p, content, "utf-8");
+      console.log(`✓ Pre-patched ${path.relative(process.cwd(), p)} with fallback manifests singleton`);
+    }
+  }
+
+  const compiledRuntimes = [
+    "node_modules/next/dist/compiled/next-server/app-page-experimental.runtime.prod.js",
+    "node_modules/next/dist/compiled/next-server/app-page-turbo-experimental.runtime.prod.js",
+    "node_modules/next/dist/compiled/next-server/app-page-experimental.runtime.dev.js",
+    "node_modules/next/dist/compiled/next-server/app-page-turbo-experimental.runtime.dev.js"
+  ];
+  for (const rel of compiledRuntimes) {
+    const full = path.resolve(rel);
+    if (fs.existsSync(full)) {
+      let content = fs.readFileSync(full, "utf-8");
+      if (!content.includes("globalThis._initNextManifests")) {
+        content = singletonHelperCode + "\n" + content;
+      }
+      content = content.replace(
+        /throw new [^;]*?\(['"]The manifests singleton was not initialized\.['"]\);/g,
+        "e = f[d] = globalThis._initNextManifests();"
+      );
+      fs.writeFileSync(full, content, "utf-8");
+      console.log(`✓ Pre-patched ${rel} with fallback manifests singleton`);
     }
   }
 } catch (e) {
@@ -214,6 +315,17 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
 `;
         workerCode = helperSnippet + "\n" + workerCode;
       }
+      if (!workerCode.includes("globalThis._initNextManifests")) {
+        workerCode = singletonHelperCode + "\n" + workerCode;
+      }
+      workerCode = workerCode.replace(
+        /throw new [^;]*?\(['"]The manifests singleton was not initialized\.['"]\);/g,
+        "e = (typeof f !== 'undefined' && typeof d !== 'undefined' ? (f[d] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
+      );
+      workerCode = workerCode.replace(
+        /throw new [^;]*?InvariantError\(['"]The manifests singleton was not initialized\.['"]\);/g,
+        "manifestSingleton = (typeof globalThisWithManifests !== 'undefined' && typeof MANIFESTS_SINGLETON !== 'undefined' ? (globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
+      );
       fs.writeFileSync(workerPath, workerCode, "utf-8");
       console.log("✓ Post-patched .open-next/worker.js with error handler, ASSETS fallback, and manifest helpers");
     }
@@ -286,6 +398,20 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
             "g"
           );
           code = code.replace(findDirRegex, "return false;");
+          modified = true;
+        }
+        if (code.includes("The manifests singleton was not initialized")) {
+          code = code.replace(
+            /throw new [^;]*?\(['"]The manifests singleton was not initialized\.['"]\);/g,
+            "e = (typeof f !== 'undefined' && typeof d !== 'undefined' ? (f[d] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
+          );
+          code = code.replace(
+            /throw new [^;]*?InvariantError\(['"]The manifests singleton was not initialized\.['"]\);/g,
+            "manifestSingleton = (typeof globalThisWithManifests !== 'undefined' && typeof MANIFESTS_SINGLETON !== 'undefined' ? (globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
+          );
+          if (!code.includes("globalThis._initNextManifests")) {
+            code = singletonHelperCode + "\n" + code;
+          }
           modified = true;
         }
         if (modified) {
