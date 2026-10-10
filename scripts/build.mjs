@@ -78,6 +78,43 @@ try {
     fs.writeFileSync(nextBaseServerPath, content, "utf-8");
     console.log("✓ Pre-patched Next.js base-server to surface runtime exception details");
   }
+
+  // D. Pre-patch Next.js load-manifest.external.js to define evalManifestFromRelativePath and loadManifestFromRelativePath
+  const manifestHelperCode = `
+var evalManifestFromRelativePath = function({ projectDir, distDir, manifest, shouldCache, cache, handleMissing } = {}) {
+  try {
+    if (typeof evalManifest === "function") {
+      const p = [projectDir, distDir, manifest].filter(Boolean).join("/");
+      return evalManifest(p, shouldCache, cache, handleMissing);
+    }
+  } catch (e) {}
+  return { __RSC_MANIFEST: {} };
+};
+globalThis.evalManifestFromRelativePath = evalManifestFromRelativePath;
+
+var loadManifestFromRelativePath = function({ projectDir, distDir, manifest, shouldCache, cache, skipParse, handleMissing } = {}) {
+  try {
+    if (typeof loadManifest === "function") {
+      const p = [projectDir, distDir, manifest].filter(Boolean).join("/");
+      return loadManifest(p, shouldCache, cache, skipParse, handleMissing);
+    }
+  } catch (e) {}
+  return {};
+};
+globalThis.loadManifestFromRelativePath = loadManifestFromRelativePath;
+`;
+  const loadManifestExtCjs = path.resolve("node_modules/next/dist/server/load-manifest.external.js");
+  const loadManifestExtEsm = path.resolve("node_modules/next/dist/esm/server/load-manifest.external.js");
+  for (const p of [loadManifestExtCjs, loadManifestExtEsm]) {
+    if (fs.existsSync(p)) {
+      let content = fs.readFileSync(p, "utf-8");
+      if (!content.includes("globalThis.evalManifestFromRelativePath")) {
+        content = manifestHelperCode + "\n" + content;
+        fs.writeFileSync(p, content, "utf-8");
+        console.log(`✓ Pre-patched ${path.relative(process.cwd(), p)} with global manifest helper definitions`);
+      }
+    }
+  }
 } catch (e) {
   console.warn("⚠️ Warning during pre-patching:", e);
 }
@@ -154,8 +191,31 @@ try {
 };`;
         workerCode = workerCode.slice(0, lastFetchBrace) + catchBlock;
       }
+      if (!workerCode.includes("globalThis.evalManifestFromRelativePath")) {
+        const helperSnippet = `
+var evalManifestFromRelativePath = globalThis.evalManifestFromRelativePath = function({ projectDir, distDir, manifest, shouldCache, cache, handleMissing } = {}) {
+  try {
+    if (typeof evalManifest === "function") {
+      const p = [projectDir, distDir, manifest].filter(Boolean).join("/");
+      return evalManifest(p, shouldCache, cache, handleMissing);
+    }
+  } catch (e) {}
+  return { __RSC_MANIFEST: {} };
+};
+var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = function({ projectDir, distDir, manifest, shouldCache, cache, skipParse, handleMissing } = {}) {
+  try {
+    if (typeof loadManifest === "function") {
+      const p = [projectDir, distDir, manifest].filter(Boolean).join("/");
+      return loadManifest(p, shouldCache, cache, skipParse, handleMissing);
+    }
+  } catch (e) {}
+  return {};
+};
+`;
+        workerCode = helperSnippet + "\n" + workerCode;
+      }
       fs.writeFileSync(workerPath, workerCode, "utf-8");
-      console.log("✓ Post-patched .open-next/worker.js with error handler and ASSETS fallback");
+      console.log("✓ Post-patched .open-next/worker.js with error handler, ASSETS fallback, and manifest helpers");
     }
   }
 
@@ -170,6 +230,40 @@ try {
       } else if (entry.isFile() && (entry.name.endsWith(".js") || entry.name.endsWith(".mjs"))) {
         let code = fs.readFileSync(fullPath, "utf-8");
         let modified = false;
+        if (code.includes("evalManifestFromRelativePath")) {
+          code = code.replace(
+            /evalManifestFromRelativePath:\s*(?:function\(\)\s*\{\s*return\s*evalManifestFromRelativePath;?\s*\}|\(\)\s*=>\s*evalManifestFromRelativePath)/g,
+            "evalManifestFromRelativePath: () => (globalThis.evalManifestFromRelativePath || function() { return { __RSC_MANIFEST: {} }; })"
+          );
+          code = code.replace(
+            /loadManifestFromRelativePath:\s*(?:function\(\)\s*\{\s*return\s*loadManifestFromRelativePath;?\s*\}|\(\)\s*=>\s*loadManifestFromRelativePath)/g,
+            "loadManifestFromRelativePath: () => (globalThis.loadManifestFromRelativePath || function() { return {}; })"
+          );
+          if (!code.includes("globalThis.evalManifestFromRelativePath =")) {
+            const helperSnippet = `
+var evalManifestFromRelativePath = globalThis.evalManifestFromRelativePath = function({ projectDir, distDir, manifest, shouldCache, cache, handleMissing } = {}) {
+  try {
+    if (typeof evalManifest === "function") {
+      const p = [projectDir, distDir, manifest].filter(Boolean).join("/");
+      return evalManifest(p, shouldCache, cache, handleMissing);
+    }
+  } catch (e) {}
+  return { __RSC_MANIFEST: {} };
+};
+var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = function({ projectDir, distDir, manifest, shouldCache, cache, skipParse, handleMissing } = {}) {
+  try {
+    if (typeof loadManifest === "function") {
+      const p = [projectDir, distDir, manifest].filter(Boolean).join("/");
+      return loadManifest(p, shouldCache, cache, skipParse, handleMissing);
+    }
+  } catch (e) {}
+  return {};
+};
+`;
+            code = helperSnippet + "\n" + code;
+          }
+          modified = true;
+        }
         if (code.includes("Unexpected loadManifest")) {
           const loadManifestRegex = new RegExp(
             "throw new Error\\([\\x60\\x22\\x27]Unexpected loadManifest[\\s\\S]*?\\);",
