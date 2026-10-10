@@ -38,7 +38,7 @@ export default async function LedgerPage() {
             : `${entries.length} entry/entries logged.`}
         </p>
         <p className="text-xs text-[var(--text-secondary)] max-w-md mx-auto">
-          In Phase 4, you can upload evidence directly to R2 and generate one-click annual review dossiers.
+          In Phase 4, you can upload evidence directly and generate one-click annual review dossiers.
         </p>
       </div>
     </div>

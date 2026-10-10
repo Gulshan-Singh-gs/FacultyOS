@@ -1,11 +1,11 @@
 export interface FacultyOSEnv {
   DB: D1Database;
   RATE_LIMIT: KVNamespace;
-  ATTACHMENTS: R2Bucket;
+  ATTACHMENTS?: R2Bucket;
   ASSETS?: R2Bucket;
-  NOTIFICATIONS: Queue;
-  AI_JOBS: Queue;
-  AI: Ai;
+  NOTIFICATIONS?: Queue;
+  AI_JOBS?: Queue;
+  AI?: Ai;
   BETTER_AUTH_SECRET: string;
   RESEND_API_KEY: string;
   RAZORPAY_KEY_ID: string;

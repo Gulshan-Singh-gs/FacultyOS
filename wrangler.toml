@@ -13,17 +13,22 @@ migrations_dir = "drizzle"
 binding = "RATE_LIMIT"
 id = "REPLACE_WITH_KV_ID"
 
-[[r2_buckets]]
-binding = "ATTACHMENTS"
-bucket_name = "facultyos-assets"
+# Optional Cloudflare R2 bucket for attachments.
+# Uncomment only if you have added an R2 subscription to your Cloudflare account.
+# [[r2_buckets]]
+# binding = "ATTACHMENTS"
+# bucket_name = "facultyos-assets"
 
-[[queues.producers]]
-queue = "notifications"
-binding = "NOTIFICATIONS"
+# Optional Cloudflare Queues producers.
+# Uncomment only if your account has a Cloudflare Workers Paid plan ($5/mo).
+# [[queues.producers]]
+# queue = "notifications"
+# binding = "NOTIFICATIONS"
+#
+# [[queues.producers]]
+# queue = "ai-jobs"
+# binding = "AI_JOBS"
 
-[[queues.producers]]
-queue = "ai-jobs"
-binding = "AI_JOBS"
-
-[ai]
-binding = "AI"
+# Optional Workers AI binding.
+# [ai]
+# binding = "AI"

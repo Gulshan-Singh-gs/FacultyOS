@@ -486,7 +486,7 @@ export function RequestDetailView({ data }: RequestDetailViewProps) {
                       {isUploading ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Uploading to R2...</span>
+                          <span>Uploading document...</span>
                         </>
                       ) : (
                         <>
