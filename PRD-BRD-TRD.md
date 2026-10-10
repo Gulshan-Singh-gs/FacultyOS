@@ -118,7 +118,7 @@ FacultyOS is a web-based SaaS application featuring a "NeuGlass Premium" UI. It 
 
 ## 1. System Architecture
 FacultyOS is a **Modular Monolith** deployed on the Edge.
-*   **Frontend / API:** Next.js 15 (App Router) running on Cloudflare Workers via `@opennextjs/cloudflare`.
+*   **Frontend / API:** Next.js 16 (App Router; see `docs/ADRs/ADR-002-next-major-version.md`) running on Cloudflare Workers via `@opennextjs/cloudflare`.
 *   **Database:** Cloudflare D1 (Serverless SQLite).
 *   **ORM:** Drizzle ORM with Drizzle Kit for migrations.
 *   **Auth:** Better Auth (Cookie-based sessions, RBAC).

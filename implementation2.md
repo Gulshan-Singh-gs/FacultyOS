@@ -164,7 +164,7 @@ pnpm db:migrate:local          # when schema changed
   - Tests: approve/deny/penalty/priority/fallback/inactive/high-stakes cases.
   - Commit: `feat(policy): deterministic engine`.
 
-- [ ] **T2.2 Policy schemas & CRUD**
+- [x] **T2.2 Policy schemas & CRUD**
   - Goal: Zod schemas for conditions/actions/policy; owner-scoped CRUD server actions; version increment on edit; `policySnapshotJson` stored per decision.
   - Refs: `PRD-BRD-TRD.md §TRD-2, §TRD-3`.
   - Tests: invalid condition JSON rejected; non-owner blocked.
@@ -176,7 +176,7 @@ pnpm db:migrate:local          # when schema changed
   - Acceptance: professor creates "48h extension" rule without reading docs.
   - Commit: `feat(policy): builder ui`.
 
-- [ ] **T2.4 Policy templates**
+- [x] **T2.4 Policy templates**
   - Goal: seed templates (extension, late, regrade, absence, meeting, missing grade) selectable at course creation.
   - Refs: `MVP.md` Phase 2.
   - Commit: `feat(policy): templates`.
