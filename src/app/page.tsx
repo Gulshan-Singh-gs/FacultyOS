@@ -46,9 +46,9 @@ export default function LandingPage() {
 
       {/* Subtle Ambient Gradient Mesh (Light & Dark) */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute -top-40 -left-40 w-[36rem] h-[36rem] bg-indigo-500/5 dark:bg-indigo-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/3 -right-40 w-[32rem] h-[32rem] bg-cyan-500/5 dark:bg-cyan-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-10 left-1/4 w-[30rem] h-[30rem] bg-emerald-500/5 dark:bg-emerald-500/10 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -left-40 w-[36rem] h-[36rem] bg-emerald-500/5 dark:bg-emerald-500/5 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 -right-40 w-[32rem] h-[32rem] bg-zinc-600/5 dark:bg-zinc-800/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-10 left-1/4 w-[30rem] h-[30rem] bg-emerald-500/5 dark:bg-emerald-500/5 rounded-full blur-3xl" />
       </div>
 
       {/* S1: Announcement Banner */}

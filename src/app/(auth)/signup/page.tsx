@@ -56,7 +56,7 @@ export default function SignUpPage() {
       {/* Background ambient gradient glow blobs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-32 -left-32 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-zinc-800/20 rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-md glass-panel p-8 md:p-10 space-y-8">

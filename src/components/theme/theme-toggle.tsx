@@ -32,14 +32,14 @@ export function ThemeToggle({
         <>
           <Sun className="w-3.5 h-3.5 text-amber-400 transition-transform hover:rotate-45" />
           {showLabel && (
-            <span className="text-[11px] font-medium text-slate-300">Light</span>
+            <span className="text-[11px] font-medium text-zinc-300">Light</span>
           )}
         </>
       ) : (
         <>
-          <Moon className="w-3.5 h-3.5 text-indigo-500 transition-transform hover:-rotate-12" />
+          <Moon className="w-3.5 h-3.5 text-zinc-800 transition-transform hover:-rotate-12" />
           {showLabel && (
-            <span className="text-[11px] font-medium text-slate-700">Dark</span>
+            <span className="text-[11px] font-medium text-zinc-700">Dark</span>
           )}
         </>
       )}
