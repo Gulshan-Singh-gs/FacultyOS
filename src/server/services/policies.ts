@@ -264,3 +264,32 @@ export function createPolicySnapshot(
     capturedAt: Date.now(),
   };
 }
+
+/**
+ * Retrieves a single policy by ID and verifies owner tenancy.
+ */
+export async function getPolicyById(
+  db: Db,
+  profileId: string,
+  policyId: string,
+): Promise<typeof policies.$inferSelect> {
+  const [existing] = await db
+    .select({
+      policy: policies,
+      courseProfileId: courses.profileId,
+    })
+    .from(policies)
+    .innerJoin(courses, eq(policies.courseId, courses.id))
+    .where(eq(policies.id, policyId))
+    .limit(1);
+
+  if (!existing) {
+    throw new Error("Policy not found");
+  }
+
+  if (existing.courseProfileId !== profileId) {
+    throw new PolicyAccessError("You do not own the course this policy belongs to");
+  }
+
+  return existing.policy;
+}

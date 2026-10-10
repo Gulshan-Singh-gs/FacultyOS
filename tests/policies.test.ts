@@ -6,6 +6,7 @@ import {
   listPoliciesForCourse,
   seedCoursePoliciesInternal,
   createPolicySnapshot,
+  getPolicyById,
   PolicyAccessError,
   PolicyLimitError,
 } from "@/server/services/policies";
@@ -266,5 +267,27 @@ describe("Policy CRUD Operations & Tenant Isolation", () => {
 
     // Validates against PolicySnapshotSchema
     expect(() => PolicySnapshotSchema.parse(snapshot)).not.toThrow();
+  });
+
+  it("fetches policy by ID with ownership verification and blocks cross-owner access", async () => {
+    const mockDb = createMockPolicyDb({
+      courses: [
+        { id: "crs_1", profileId: "prof_owner" },
+        { id: "crs_other", profileId: "prof_other" },
+      ],
+      policies: [
+        { id: "pol_1", courseId: "crs_1", name: "Owner Policy", version: 1 },
+      ],
+    }) as unknown as Db;
+
+    // Authorized owner access
+    const policy = await getPolicyById(mockDb, "prof_owner", "pol_1");
+    expect(policy.id).toBe("pol_1");
+    expect(policy.name).toBe("Owner Policy");
+
+    // Block non-owner
+    await expect(
+      getPolicyById(mockDb, "prof_other", "pol_1"),
+    ).rejects.toThrow(PolicyAccessError);
   });
 });

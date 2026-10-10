@@ -27,6 +27,8 @@ export const ConditionOperatorSchema = z.enum([
   "does_not_exist",
 ]);
 
+export type ConditionOperator = z.infer<typeof ConditionOperatorSchema>;
+
 export const PolicyConditionSchema = z.object({
   field: z.string().min(1, "Field name is required").max(64),
   operator: ConditionOperatorSchema,

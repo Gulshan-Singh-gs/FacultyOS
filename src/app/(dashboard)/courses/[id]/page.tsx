@@ -5,7 +5,9 @@ import { requireProfile } from "@/server/auth/session";
 import { createDb } from "@/server/db";
 import { getServerEnv } from "@/server/env";
 import { getCourseWithOwnership, CourseAccessError } from "@/server/services/courses";
+import { listPoliciesForCourse } from "@/server/services/policies";
 import { CoursePortalCard } from "@/components/courses/course-portal-card";
+import { CoursePoliciesManager } from "@/components/policies/course-policies-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +22,10 @@ export default async function CourseDetailPage({ params }: CourseDetailPageProps
   const db = createDb(env.DB);
 
   let course;
+  let coursePolicies = [];
   try {
     course = await getCourseWithOwnership(db, profile.id, id);
+    coursePolicies = await listPoliciesForCourse(db, profile.id, course.id);
   } catch (err) {
     if (err instanceof CourseAccessError) {
       notFound();
@@ -82,6 +86,13 @@ export default async function CourseDetailPage({ params }: CourseDetailPageProps
         courseId={course.id}
         courseCode={course.courseCode}
         courseStatus={course.status}
+      />
+
+      {/* Course Policy Engine Section */}
+      <CoursePoliciesManager
+        courseId={course.id}
+        courseCode={course.courseCode}
+        coursePolicies={coursePolicies}
       />
 
       {/* Syllabus & Policy Overview */}

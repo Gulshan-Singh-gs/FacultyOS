@@ -170,7 +170,7 @@ pnpm db:migrate:local          # when schema changed
   - Tests: invalid condition JSON rejected; non-owner blocked.
   - Commit: `feat(policy): schemas and crud`.
 
-- [ ] **T2.3 Policy builder UI**
+- [x] **T2.3 Policy builder UI**
   - Goal: visual rule rows (When/Then), add/remove condition, priority, activate toggle, live preview panel (glass).
   - Refs: `UI.md §Screen 6`.
   - Acceptance: professor creates "48h extension" rule without reading docs.
