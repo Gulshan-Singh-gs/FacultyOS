@@ -7,15 +7,15 @@
  *  - 0 8 * * 1   → Weekly Monday 8 AM: Send "Week Ahead" digest
  *  - 0 2 * * *   → Daily 2 AM: Purge expired free-tier data
  */
-export default {
+const cronWorker = {
   async scheduled(
     event: ScheduledEvent,
-    env: {
+    _env: {
       DB: D1Database;
       KV: KVNamespace;
       NOTIFICATIONS: Queue;
     },
-    ctx: ExecutionContext,
+    _ctx: ExecutionContext,
   ): Promise<void> {
     const { cron } = event;
 
@@ -40,3 +40,6 @@ export default {
     }
   },
 };
+
+export default cronWorker;
+

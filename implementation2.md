@@ -227,13 +227,14 @@ pnpm db:migrate:local          # when schema changed
   - Tests: blocked MIME and blocked category rejected.
   - Commit: `feat(requests): attachments`.
 
-- [ ] **T2.13 Notification consumer**
+- [x] **T2.13 Notification consumer**
   - Goal: queue consumer sends Resend emails (student confirmation, professor new-request); templates in `src/emails/`.
   - Refs: `PRD-BRD-TRD.md §TRD-6`.
   - Acceptance: local queue run delivers both emails in sandbox.
   - Commit: `feat(notifications): consumer and templates`.
 
-**Phase 2 exit:** end-to-end manual test — student submits extension → auto-resolved OR queued → professor decides → student status page updates → audit trail complete.
+**Phase 2 exit:** [x] End-to-end verified — student submits extension → auto-resolved OR queued → professor decides → student status page updates → audit trail complete. Verified in `docs/QA/phase2-qa.md`.
+
 
 ---
 

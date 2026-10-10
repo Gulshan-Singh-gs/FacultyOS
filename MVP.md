@@ -1,11 +1,25 @@
 # FacultyOS MVP Architecture & Execution Tracking
 
-**Current Phase:** Phase 2 (Request Engine) — Ready for Kickoff  
+**Current Phase:** Phase 3 (Boundaries + AI Assistant) — Ready for Kickoff  
 **Phase 0 (Bootstrap):** [x] Complete  
 **Phase 1 (Foundation: Identity, Courses, NeuGlass Shell):** [x] Complete & Audited  
-**Phase 2 (Request Engine):** [~] In Progress (T2.1 pre-satisfied)  
+**Phase 2 (Request Engine):** [x] Complete & Audited (T2.1 – T2.13 Verified • docs/QA/phase2-qa.md)  
 **Phase 3 (Boundaries + AI Assistant):** [ ] Pending  
 **Phase 4 (Ledger, Reports, Billing, Launch):** [ ] Pending  
+
+---
+
+## Phase 2 Acceptance Criteria Sign-Off
+- [x] Deterministic policy evaluation engine (T2.1, T2.2)
+- [x] Visual policy builder UI with rule presets and live preview (T2.3, T2.4)
+- [x] Student portal landing `/c/[token]` & multi-step intake forms with Hard Rule 1 medical protection (T2.5, T2.6)
+- [x] Public intake API with IP/token sliding-window rate limiting & SHA-256 deduplication (T2.7)
+- [x] Student read-only status page `/r/[token]` with explainability & zero AI mention guarantee (T2.8)
+- [x] Professor triage inbox `/inbox` with 6 queues, pseudonymous student labels, and calm empty states (T2.9)
+- [x] Three-pane request detail view `/requests/[requestId]` with immutable policy snapshot and timeline (T2.10)
+- [x] Decision actions (`approve`, `deny`, `require_info`, `assign_to_ta`, `close`), IDOR check, audit trail, and bulk archival (T2.11)
+- [x] Secure non-medical attachments with Cloudflare R2 upload, MIME/category allowlists, and plan size caps (T2.12)
+- [x] Cloudflare Queue consumer for notifications with Resend email templates & Phase 2 Exit Proof (T2.13)
 
 ---
 
