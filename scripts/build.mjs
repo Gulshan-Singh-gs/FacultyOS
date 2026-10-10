@@ -2,6 +2,17 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+// ⚠️ RECURSION GUARD:
+// When OpenNext runs its "Building Next.js app" phase, it executes the project's "pnpm run build".
+// If "build" runs this script, we must build the Next.js app directly and exit, preventing an infinite loop.
+if (process.env.OPEN_NEXT_BUILDING_NEXT === "1") {
+  console.log("--> OpenNext inner build step: executing Next.js build");
+  execSync("npx next build", { stdio: "inherit" });
+  process.exit(0);
+}
+
+process.env.OPEN_NEXT_BUILDING_NEXT = "1";
+
 console.log("=== Building FacultyOS for Cloudflare Deployment ===");
 
 const isWindows = process.platform === "win32";
