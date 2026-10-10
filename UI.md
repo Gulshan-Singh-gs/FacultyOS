@@ -1605,44 +1605,69 @@ Just a clean, guided flow.
 ### Layout
 
 ```text
-+--------------------------------------+
-| CS301 - Database Systems             |
-| Dr. Sharma                           |
-+--------------------------------------+
-| What do you need help with?          |
-|                                      |
-| [Extension] [Regrade] [Meeting]     |
-| [Absence] [Missing Grade] [Other]   |
-+--------------------------------------+
++--------------------------------------------------------------+
+| [Hard Rule 1 Alert: Zero Medical Data Collection Notice]     |
++--------------------------------------------------------------+
+| CS301 - Database Systems • Dr. Sharma                        |
+| Policy Summary Band: 48h SLA · FERPA Protected · Syllabus    |
++--------------------------------------------------------------+
+| EXPLORE CATEGORIES                                           |
+| (•) All Highlights  (•) Cultural Fests                       |
+| (•) Tech/Hackathons (•) Athletics & Sports                   |
++--------------------------------------------------------------+
+| What do you need help with?                                  |
+| [Extension] [Regrade] [Absence] [Meeting] [Missing] [Other]  |
++--------------------------------------------------------------+
 ```
+
+---
+
+### Category Explorer (NeuGlass Circular Architecture)
+
+1. **Circular Category Cards (`.category-circle`):**
+   - Shape: Perfect circles (aspect-ratio: 1/1, rounded-full)
+   - Size: 160px diameter on desktop, 120px on mobile
+   - Light Mode: `#FFFFFF` with neumorphic raised shadow (`--shadow-neu-raised`)
+   - Dark Mode: Navy-surface (`#121826`) with dark neumorphic depth
+   - Active / Highlight Card: Linear/conic gradient border (`.gradient-border`, purple-500 → orange-500)
+   - Hover: `scale(1.05)` with 150ms ease-out (disabled on `prefers-reduced-motion`)
+   - Centered Lucide Icons (strokeWidth=1.5, size=32):
+     - **All Highlights:** `Sparkles`
+     - **Cultural Fests:** `Flame` (UTSAV, Lohri, fests)
+     - **Tech & Hackathons:** `Code2` (hackathons, project sprints)
+     - **Athletics & Sports:** `Trophy` (varsity tournaments)
+   - Accessibility: `<button role="gridcell">`, aria-label with title and subtitle, full keyboard navigation with focus-visible ring.
+
+2. **Hard Rule 1 Medical-Block Banner:**
+   - Present prominently on top of landing page and on EVERY request type screen.
+   - Glass-badge alert / liquid glass panel directing medical & mental-health inquiries directly to university support services.
+   - Closed reason taxonomy with zero medical values.
 
 ---
 
 ### Request Type Cards
 
-Neumorphic cards with glass hover.
-
-Each card:
-
-```text
-Icon
-Title
-Short description
-```
+Neumorphic cards with glass hover:
+- Extension (Auto-policy eligible)
+- Regrade (Rubric citation & student work quotes required)
+- Absence (University-approved athletics & cultural)
+- Meeting (Structured agenda & async resolution toggle)
+- Missing Grade (LMS submission ID & verification)
+- Other (General syllabus inquiry)
 
 ---
 
 ### Form Flow
 
-Use stepper:
+Use stepper (6 steps):
 
 ```text
-1. Request type
-2. Details
-3. Policy check
-4. Attachments
-5. Review
-6. Submit
+1. Request type (with medical boundary redirection)
+2. Details (custom fields per request type; Zod validated)
+3. Policy check (confirmation of syllabus rules & zero medical data)
+4. Attachments (optional non-medical proof, e.g. hackathon badge)
+5. Review (summary review of student submission)
+6. Submit (Cloudflare Turnstile verification + instant policy evaluation)
 ```
 
 ---

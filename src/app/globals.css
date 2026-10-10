@@ -209,6 +209,56 @@ body {
   color: var(--text-primary);
 }
 
+/* Category Explorer Styles (Screen 7 UI Redesign) */
+.category-circle {
+  aspect-ratio: 1 / 1;
+  border-radius: 9999px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+  box-shadow: var(--shadow-neu-raised);
+  background-color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.category-circle:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-neu-raised);
+}
+
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  padding: 1px;
+  background: linear-gradient(135deg, #a855f7, #f97316);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .category-circle {
+    background-color: var(--bg-surface);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+.dark .category-circle {
+  background-color: var(--bg-surface);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 /* Reduced Motion (UI.md §23) */
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
@@ -217,4 +267,8 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  .category-circle:hover {
+    transform: none !important;
+  }
 }
+

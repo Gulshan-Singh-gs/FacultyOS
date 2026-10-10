@@ -181,13 +181,13 @@ pnpm db:migrate:local          # when schema changed
   - Refs: `MVP.md` Phase 2.
   - Commit: `feat(policy): templates`.
 
-- [ ] **T2.5 Student portal course page**
+- [x] **T2.5 Student portal course page**
   - Goal: `/c/[courseToken]` mobile-first page: course header, request-type cards, policy summary, **medical-block banner** linking university support.
   - Refs: `UI.md §Screen 7`; AGENTS Hard Rule 1.
   - Acceptance: invalid/expired token → calm 404; banner visible on every request type.
   - Commit: `feat(portal): course landing`.
 
-- [ ] **T2.6 Intake forms**
+- [x] **T2.6 Intake forms**
   - Goal: stepper forms per request type (extension first; then regrade with rubric mapping, absence, meeting, missing grade, other); Turnstile widget; reason taxonomy enum only (no medical values).
   - Refs: `UI.md §Screen 7`; `PRD-BRD-TRD.md §TRD-3`.
   - Tests: Zod rejects medical categories; regrade form requires rubric fields.

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { sha256 } from "@/lib/utils";
-import { ExtensionRequestSchema } from "@/lib/validations/request";
+import {
+  ExtensionRequestSchema,
+  AnyIntakeRequestSchema,
+  type AnyIntakeRequestInput,
+} from "@/lib/validations/request";
 import { PolicySchema } from "@/lib/validations/policy";
 import { createDb } from "@/server/db";
 import {
@@ -39,11 +43,21 @@ export async function POST(
   await env.RATE_LIMIT.put(key, String(count + 1), { expirationTtl: 600 });
 
   /* 2. Validate input (Zod blocks medical categories by design — Hard Rule 1) */
-  const parsed = ExtensionRequestSchema.safeParse(await req.json());
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  const rawBody = (await req.json()) as Record<string, unknown>;
+  let input: AnyIntakeRequestInput;
+  if (!rawBody.requestType || rawBody.requestType === "extension") {
+    const extParsed = ExtensionRequestSchema.safeParse(rawBody);
+    if (!extParsed.success) {
+      return NextResponse.json({ error: extParsed.error.flatten() }, { status: 400 });
+    }
+    input = { ...extParsed.data, requestType: "extension" };
+  } else {
+    const parsed = AnyIntakeRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+    input = parsed.data;
   }
-  const input = parsed.data;
 
   /* 3. Resolve course by hashed token (tenant isolation — Hard Rule 5) */
   const tokenHash = await sha256(courseToken);
@@ -71,15 +85,22 @@ export async function POST(
     .filter((p) => PolicySchema.omit({ name: true }).safeParse(p).success);
 
   /* 5. Build enriched payload and evaluate deterministically */
-  const daysBeforeDeadline =
-    (new Date(input.currentDeadline).getTime() - Date.now()) / 86_400_000;
+  let daysBeforeDeadline = 0;
+  if (input.requestType === "extension" && "currentDeadline" in input) {
+    daysBeforeDeadline =
+      (new Date(input.currentDeadline).getTime() - Date.now()) / 86_400_000;
+  }
 
   const payload: RequestPayload = {
-    requestType: "extension",
     ...input,
-    currentDeadline: input.currentDeadline.toISOString(),
-    requestedNewDeadline: input.requestedNewDeadline.toISOString(),
-    daysBeforeDeadline: Math.round(daysBeforeDeadline * 10) / 10,
+    requestType: input.requestType as Policy["policyType"],
+    ...(input.requestType === "extension" && "currentDeadline" in input
+      ? {
+          currentDeadline: new Date(input.currentDeadline).toISOString(),
+          requestedNewDeadline: new Date(input.requestedNewDeadline).toISOString(),
+          daysBeforeDeadline: Math.round(daysBeforeDeadline * 10) / 10,
+        }
+      : {}),
   };
 
   const decision = evaluatePolicies(safePolicies, payload);
@@ -116,7 +137,7 @@ export async function POST(
     publicToken,
     courseId: course.id,
     studentIdentityId: identity.id,
-    requestType: "extension",
+    requestType: input.requestType,
     status: decision.status,
     intakePayloadJson: JSON.stringify(payload),
     matchedPolicyId: decision.matchedPolicyId,
