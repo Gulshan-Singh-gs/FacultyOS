@@ -24,6 +24,7 @@ import { PricingSection } from "@/components/marketing/pricing-section";
 import { AnalyticsIsland } from "@/components/marketing/analytics-island";
 
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { FacultyLogo } from "@/components/ui/faculty-logo";
 
 export const dynamic = "force-static";
 
@@ -77,9 +78,7 @@ export default function LandingPage() {
         >
           {/* Brand Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#059669] to-[#10b981] flex items-center justify-center text-white font-bold text-base shadow-sm group-hover:scale-105 transition-transform">
-              F
-            </div>
+            <FacultyLogo size={32} className="group-hover:scale-105 transition-transform" />
             <div className="flex flex-col">
               <span className="font-bold text-base tracking-tight text-[var(--text-primary)]">
                 FacultyOS
@@ -521,9 +520,7 @@ export default function LandingPage() {
           {/* Brand Info */}
           <div className="col-span-2 space-y-3.5">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-400 flex items-center justify-center text-white font-bold text-base shadow-sm">
-                F
-              </div>
+              <FacultyLogo size={32} />
               <span className="font-bold text-base text-[var(--text-primary)]">FacultyOS</span>
             </div>
             <p className="text-xs text-[var(--text-secondary)] max-w-sm leading-relaxed">

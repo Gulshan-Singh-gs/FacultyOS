@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { MedicalBoundaryBanner } from "@/components/portal/medical-boundary-banner";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { FacultyLogo } from "@/components/ui/faculty-logo";
 
 export const dynamic = "force-dynamic";
 
@@ -145,6 +146,7 @@ export default async function RequestStatusPage({
         {/* Status Page Top Bar with Theme Toggle */}
         <div className="flex items-center justify-between pb-2 border-b border-[var(--border-color)]">
           <div className="flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]">
+            <FacultyLogo size={18} />
             <span className="font-bold text-[var(--text-primary)] tracking-tight">FacultyOS</span>
             <span>•</span>
             <span>Official Status Page</span>

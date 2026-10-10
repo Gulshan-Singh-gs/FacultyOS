@@ -10,18 +10,18 @@ export default function manifest(): MetadataRoute.Manifest {
       "Automate student requests, enforce syllabus policies, protect your time, and document your career.",
     start_url: "/",
     display: "standalone",
-    background_color: "#F4F6FB",
-    theme_color: "#6366F1",
+    background_color: "#000000",
+    theme_color: "#10b981",
     icons: [
       {
-        src: "/icon.png",
-        sizes: "192x192",
-        type: "image/png",
+        src: "/icon.svg",
+        sizes: "any",
+        type: "image/svg+xml",
       },
       {
-        src: "/icon.png",
-        sizes: "512x512",
-        type: "image/png",
+        src: "/favicon.svg",
+        sizes: "any",
+        type: "image/svg+xml",
       },
     ],
   };

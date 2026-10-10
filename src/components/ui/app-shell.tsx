@@ -17,6 +17,7 @@ import {
   Plus,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { FacultyLogo } from "@/components/ui/faculty-logo";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -87,9 +88,7 @@ export function AppShell({ children, user, profile }: AppShellProps) {
         <div className="space-y-6">
           {/* Logo & Brand */}
           <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#059669] to-[#10b981] flex items-center justify-center text-white font-bold text-xl shadow-[var(--shadow-emerald)]">
-              F
-            </div>
+            <FacultyLogo size={36} />
             <div>
               <div className="font-semibold text-base tracking-tight text-[var(--text-primary)]">
                 FacultyOS
@@ -193,7 +192,10 @@ export function AppShell({ children, user, profile }: AppShellProps) {
           <div className="md:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm p-4 flex flex-col justify-between">
             <div className="card-neu p-4 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)]">
-                <span className="font-bold text-base">FacultyOS</span>
+                <div className="flex items-center gap-2">
+                  <FacultyLogo size={24} />
+                  <span className="font-bold text-base">FacultyOS</span>
+                </div>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
                   className="p-1 rounded-lg text-[var(--text-secondary)]"

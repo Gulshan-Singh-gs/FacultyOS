@@ -27,22 +27,19 @@ export default async function Image() {
       >
         {/* Brand Header */}
         <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-          <div
-            style={{
-              width: "64px",
-              height: "64px",
-              borderRadius: "18px",
-              background: "linear-gradient(135deg, #6366F1, #22D3EE)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#ffffff",
-              fontSize: "36px",
-              fontWeight: 800,
-            }}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 64 64"
+            width="64"
+            height="64"
           >
-            F
-          </div>
+            <rect width="64" height="64" rx="16" fill="#18181B" stroke="#27272A" strokeWidth="1.5" />
+            <rect x="16" y="16" width="9" height="32" rx="2" fill="#F4F4F5" />
+            <rect x="29" y="16" width="9" height="9" rx="2" fill="#8B5CF6" />
+            <rect x="41" y="16" width="9" height="9" rx="2" fill="#A78BFA" />
+            <rect x="29" y="28" width="9" height="9" rx="2" fill="#8B5CF6" />
+            <circle cx="33.5" cy="43.5" r="3.5" fill="#34D399" />
+          </svg>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <span style={{ fontSize: "32px", fontWeight: 800, color: "#F9FAFB" }}>
               FacultyOS

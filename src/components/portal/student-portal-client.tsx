@@ -20,6 +20,7 @@ import {
 } from "./request-type-cards";
 import { IntakeStepperForm, type RequestType } from "./intake-stepper-form";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { FacultyLogo } from "@/components/ui/faculty-logo";
 
 export interface StudentPortalCourseData {
   courseCode: string;
@@ -66,6 +67,7 @@ export function StudentPortalClient({
         {/* Portal Header with Theme Toggle */}
         <div className="flex items-center justify-between pb-2 border-b border-[var(--border-color)]">
           <div className="flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]">
+            <FacultyLogo size={18} />
             <span className="font-bold text-[var(--text-primary)] tracking-tight">FacultyOS</span>
             <span>•</span>
             <span>Student Request Portal</span>

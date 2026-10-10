@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/server/auth/client";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { FacultyLogo } from "@/components/ui/faculty-logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -54,9 +55,7 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md glass-panel p-8 md:p-10 space-y-8">
         {/* Brand header */}
         <div className="text-center space-y-2">
-          <div className="mx-auto w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#059669] to-[#10b981] flex items-center justify-center text-white font-bold text-2xl shadow-[var(--shadow-emerald)]">
-            F
-          </div>
+          <FacultyLogo size={48} className="mx-auto" />
           <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
             Welcome to FacultyOS
           </h1>
