@@ -236,6 +236,12 @@ globalThis.loadManifestFromRelativePath = loadManifestFromRelativePath;
         content = content.replace(rsdServerRegex, rsdServerFallback);
         changed = true;
       }
+      if (content.includes("Connection closed.")) {
+        content = content.replace(/options\s*&&\s*options\.unstable_allowPartialStream\s*\?\s*options\.unstable_allowPartialStream\s*:\s*!1/g, "!0");
+        content = content.replace(/:\s*reportGlobalError\(\w+,\s*Error\(['"]Connection closed\.['"]\)\);?/g, ": (weakResponse._closed = !0);");
+        content = content.replace(/reportGlobalError\(\w+,\s*Error\(['"]Connection closed\.['"]\)\);?/g, "/* connection closed */");
+        changed = true;
+      }
       if (changed) {
         fs.writeFileSync(fullP, content, "utf-8");
         console.log(`✓ Pre-patched ${relPath} for React Server DOM resilience`);
@@ -277,21 +283,57 @@ try {
       "utf-8"
     );
     console.log("✓ Configured .assetsignore in assets directory");
+
+    // Copy prerendered static HTML pages into assets so Cloudflare Edge can serve them directly
+    const nextAppServerDir = path.resolve(".next/server/app");
+    if (fs.existsSync(nextAppServerDir)) {
+      const appFiles = fs.readdirSync(nextAppServerDir);
+      for (const f of appFiles) {
+        if (f.endsWith(".html")) {
+          const src = path.join(nextAppServerDir, f);
+          const dest = path.join(assetsDir, f);
+          fs.copyFileSync(src, dest);
+          const baseName = f.replace(".html", "");
+          if (baseName !== "index" && baseName !== "_global-error" && baseName !== "_not-found") {
+            const subDir = path.join(assetsDir, baseName);
+            fs.mkdirSync(subDir, { recursive: true });
+            fs.copyFileSync(src, path.join(subDir, "index.html"));
+          }
+        }
+      }
+      console.log("✓ Copied prerendered static HTML pages into .open-next/assets for Edge CDN serving");
+    }
   }
 
   // 2. Enhance .open-next/worker.js with error resilience & ASSETS fallback
   if (fs.existsSync(workerPath)) {
     let workerCode = fs.readFileSync(workerPath, "utf-8");
     if (!workerCode.includes("[FacultyOS Worker Runtime Exception]")) {
+      const fallbackSnippet = `
+            if (res && res.status >= 500 && request.method === "GET" && env?.ASSETS?.fetch) {
+              try {
+                const url = new URL(request.url);
+                const assetRes = await env.ASSETS.fetch(request);
+                if (assetRes && assetRes.status < 400) return assetRes;
+                const pathname = url.pathname.endsWith("/") ? url.pathname.slice(0, -1) : url.pathname;
+                if (pathname) {
+                  const htmlReq = new Request(new URL(pathname + ".html", url.origin), request);
+                  const htmlRes = await env.ASSETS.fetch(htmlReq);
+                  if (htmlRes && htmlRes.status < 400) return htmlRes;
+                  const indexReq = new Request(new URL(pathname + "/index.html", url.origin), request);
+                  const indexRes = await env.ASSETS.fetch(indexReq);
+                  if (indexRes && indexRes.status < 400) return indexRes;
+                } else {
+                  const rootReq = new Request(new URL("/index.html", url.origin), request);
+                  const rootRes = await env.ASSETS.fetch(rootReq);
+                  if (rootRes && rootRes.status < 400) return rootRes;
+                }
+              } catch (e) {}
+            }`;
       workerCode = workerCode.replace(
         "return handler(reqOrResp, env, ctx, request.signal);",
         `const res = await handler(reqOrResp, env, ctx, request.signal);
-            if (res && res.status >= 500 && request.method === "GET" && env?.ASSETS?.fetch) {
-              try {
-                const assetRes = await env.ASSETS.fetch(request);
-                if (assetRes && assetRes.status < 400) return assetRes;
-              } catch (e) {}
-            }
+            ${fallbackSnippet}
             return res;`
       );
       workerCode = workerCode.replace(
@@ -305,8 +347,22 @@ try {
           console.error("[FacultyOS Worker Runtime Exception]", err);
           if (env?.ASSETS?.fetch && request.method === "GET") {
             try {
+              const url = new URL(request.url);
               const assetRes = await env.ASSETS.fetch(request);
               if (assetRes && assetRes.status < 400) return assetRes;
+              const pathname = url.pathname.endsWith("/") ? url.pathname.slice(0, -1) : url.pathname;
+              if (pathname) {
+                const htmlReq = new Request(new URL(pathname + ".html", url.origin), request);
+                const htmlRes = await env.ASSETS.fetch(htmlReq);
+                if (htmlRes && htmlRes.status < 400) return htmlRes;
+                const indexReq = new Request(new URL(pathname + "/index.html", url.origin), request);
+                const indexRes = await env.ASSETS.fetch(indexReq);
+                if (indexRes && indexRes.status < 400) return indexRes;
+              } else {
+                const rootReq = new Request(new URL("/index.html", url.origin), request);
+                const rootRes = await env.ASSETS.fetch(rootReq);
+                if (rootRes && rootRes.status < 400) return rootRes;
+              }
             } catch (e) {}
           }
           return new Response(
