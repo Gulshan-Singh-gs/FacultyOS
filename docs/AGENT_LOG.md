@@ -1,0 +1,6 @@
+# FacultyOS Agent Execution Log
+
+| Date | Task ID | Files Touched | Gates Result | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| 2026-10-10 | T0.1–T0.6 (Phase 0) | `package.json`, `wrangler.toml`, `drizzle.config.ts`, `src/server/db/schema.ts`, `src/lib/validations/*`, `src/server/services/policy-engine/*`, `tests/*` | PASS | Baseline toolchain, D1 schema, deterministic engine, CI/CD, migration 0000 |
+| 2026-10-10 | T1.1–T1.9 (Phase 1) | `src/server/db/schema.ts`, `src/server/auth/*`, `src/server/services/plan-limits.ts`, `src/server/services/courses.ts`, `src/server/actions/courses.ts`, `src/app/globals.css`, `src/components/ui/app-shell.tsx`, `src/components/courses/*`, `src/app/(auth)/*`, `src/app/(dashboard)/*`, `tests/plan-limits.test.ts`, `tests/courses.test.ts`, `tests/auth.test.ts` | PASS (19/19 tests, 0 lint errors, tsc clean, next build clean) | Phase 1 Foundation complete: Better Auth with D1, NeuGlass tokens, AppShell, Course CRUD + token rotation, Dashboard KPIs + empty states |
