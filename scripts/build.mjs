@@ -21,9 +21,9 @@ const isCloudflare = process.env.CF_PAGES === "1" || process.env.CI === "true" |
 try {
   console.log("Executing OpenNext Cloudflare adapter build...");
   try {
-    execSync("pnpm exec opennextjs-cloudflare build --config wrangler.toml.bak", { stdio: "inherit" });
+    execSync("pnpm exec opennextjs-cloudflare build", { stdio: "inherit" });
   } catch {
-    execSync("npx opennextjs-cloudflare build --config wrangler.toml.bak", { stdio: "inherit" });
+    execSync("npx opennextjs-cloudflare build", { stdio: "inherit" });
   }
 
   const openNextDir = path.resolve(".open-next");

@@ -1,11 +1,7 @@
 name = "facultyos"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat"]
-main = ".open-next/worker.js"
-pages_build_output_dir = ".open-next/assets"
-
-[assets]
-directory = ".open-next/assets"
+pages_build_output_dir = ".open-next"
 
 [[d1_databases]]
 binding = "DB"
@@ -35,6 +31,3 @@ binding = "AI_JOBS"
 
 [ai]
 binding = "AI"
-
-[triggers]
-crons = ["0 0 * * *", "0 8 * * 1", "0 2 * * *"]
