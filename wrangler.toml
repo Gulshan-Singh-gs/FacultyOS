@@ -1,10 +1,14 @@
 name = "facultyos"
+main = ".open-next/worker.js"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".open-next"
 
-# Bindings are configured directly in the Cloudflare Pages Dashboard:
-# Project -> Settings -> Functions -> Bindings
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+# Bindings are configured directly in Cloudflare Dashboard:
+# Workers & Pages -> facultyos -> Settings -> Variables and Bindings:
 # - KV namespace: RATE_LIMIT
 # - D1 database: DB (facultyos)
 # - Queue: NOTIFICATIONS (notifications)
