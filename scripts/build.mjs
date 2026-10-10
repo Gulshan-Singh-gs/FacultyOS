@@ -172,50 +172,6 @@ globalThis.loadManifestFromRelativePath = loadManifestFromRelativePath;
       }
     }
   }
-
-  // E. Pre-patch Next.js manifests-singleton to provide fallback singleton when uninitialized
-  const manifestsSingletonCjs = path.resolve("node_modules/next/dist/server/app-render/manifests-singleton.js");
-  const manifestsSingletonEsm = path.resolve("node_modules/next/dist/esm/server/app-render/manifests-singleton.js");
-  for (const p of [manifestsSingletonCjs, manifestsSingletonEsm]) {
-    if (fs.existsSync(p)) {
-      let content = fs.readFileSync(p, "utf-8");
-      if (!content.includes("globalThis._initNextManifests")) {
-        content = singletonHelperCode + "\n" + content;
-      }
-      content = content.replace(
-        /throw new [^;]*?InvariantError\(['"]The manifests singleton was not initialized\.['"]\);/g,
-        "manifestSingleton = globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests();"
-      );
-      content = content.replace(
-        /throw new [^;]*?InvariantError\(`The client reference manifest for route [^`]*? does not exist\.`\);/g,
-        "return {};"
-      );
-      fs.writeFileSync(p, content, "utf-8");
-      console.log(`✓ Pre-patched ${path.relative(process.cwd(), p)} with fallback manifests singleton`);
-    }
-  }
-
-  const compiledRuntimes = [
-    "node_modules/next/dist/compiled/next-server/app-page-experimental.runtime.prod.js",
-    "node_modules/next/dist/compiled/next-server/app-page-turbo-experimental.runtime.prod.js",
-    "node_modules/next/dist/compiled/next-server/app-page-experimental.runtime.dev.js",
-    "node_modules/next/dist/compiled/next-server/app-page-turbo-experimental.runtime.dev.js"
-  ];
-  for (const rel of compiledRuntimes) {
-    const full = path.resolve(rel);
-    if (fs.existsSync(full)) {
-      let content = fs.readFileSync(full, "utf-8");
-      if (!content.includes("globalThis._initNextManifests")) {
-        content = singletonHelperCode + "\n" + content;
-      }
-      content = content.replace(
-        /throw new [^;]*?\(['"]The manifests singleton was not initialized\.['"]\);/g,
-        "e = f[d] = globalThis._initNextManifests();"
-      );
-      fs.writeFileSync(full, content, "utf-8");
-      console.log(`✓ Pre-patched ${rel} with fallback manifests singleton`);
-    }
-  }
 } catch (e) {
   console.warn("⚠️ Warning during pre-patching:", e);
 }
@@ -319,12 +275,20 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
         workerCode = singletonHelperCode + "\n" + workerCode;
       }
       workerCode = workerCode.replace(
+        /function p\(\)\s*\{let e=f\[d\];if\(!e\)[\s\S]*?return e\}/g,
+        "function p(){return (typeof f !== 'undefined' && typeof d !== 'undefined' ? (f[d] || (f[d] = globalThis._initNextManifests())) : globalThis._initNextManifests())}"
+      );
+      workerCode = workerCode.replace(
+        /const manifestSingleton = globalThisWithManifests\[MANIFESTS_SINGLETON\];[\s\S]*?return manifestSingleton;/g,
+        "return (typeof globalThisWithManifests !== 'undefined' && typeof MANIFESTS_SINGLETON !== 'undefined' ? (globalThisWithManifests[MANIFESTS_SINGLETON] || (globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests())) : globalThis._initNextManifests());"
+      );
+      workerCode = workerCode.replace(
         /throw new [^;]*?\(['"]The manifests singleton was not initialized\.['"]\);/g,
-        "e = (typeof f !== 'undefined' && typeof d !== 'undefined' ? (f[d] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
+        "return (typeof f !== 'undefined' && typeof d !== 'undefined' ? (f[d] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
       );
       workerCode = workerCode.replace(
         /throw new [^;]*?InvariantError\(['"]The manifests singleton was not initialized\.['"]\);/g,
-        "manifestSingleton = (typeof globalThisWithManifests !== 'undefined' && typeof MANIFESTS_SINGLETON !== 'undefined' ? (globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
+        "return (typeof globalThisWithManifests !== 'undefined' && typeof MANIFESTS_SINGLETON !== 'undefined' ? (globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
       );
       fs.writeFileSync(workerPath, workerCode, "utf-8");
       console.log("✓ Post-patched .open-next/worker.js with error handler, ASSETS fallback, and manifest helpers");
@@ -402,12 +366,20 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
         }
         if (code.includes("The manifests singleton was not initialized")) {
           code = code.replace(
+            /function p\(\)\s*\{let e=f\[d\];if\(!e\)[\s\S]*?return e\}/g,
+            "function p(){return (typeof f !== 'undefined' && typeof d !== 'undefined' ? (f[d] || (f[d] = globalThis._initNextManifests())) : globalThis._initNextManifests())}"
+          );
+          code = code.replace(
+            /const manifestSingleton = globalThisWithManifests\[MANIFESTS_SINGLETON\];[\s\S]*?return manifestSingleton;/g,
+            "return (typeof globalThisWithManifests !== 'undefined' && typeof MANIFESTS_SINGLETON !== 'undefined' ? (globalThisWithManifests[MANIFESTS_SINGLETON] || (globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests())) : globalThis._initNextManifests());"
+          );
+          code = code.replace(
             /throw new [^;]*?\(['"]The manifests singleton was not initialized\.['"]\);/g,
-            "e = (typeof f !== 'undefined' && typeof d !== 'undefined' ? (f[d] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
+            "return (typeof f !== 'undefined' && typeof d !== 'undefined' ? (f[d] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
           );
           code = code.replace(
             /throw new [^;]*?InvariantError\(['"]The manifests singleton was not initialized\.['"]\);/g,
-            "manifestSingleton = (typeof globalThisWithManifests !== 'undefined' && typeof MANIFESTS_SINGLETON !== 'undefined' ? (globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
+            "return (typeof globalThisWithManifests !== 'undefined' && typeof MANIFESTS_SINGLETON !== 'undefined' ? (globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
           );
           if (!code.includes("globalThis._initNextManifests")) {
             code = singletonHelperCode + "\n" + code;
