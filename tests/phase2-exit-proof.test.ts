@@ -388,8 +388,6 @@ describe("Phase 2 Exit Proof — 7-Step End-to-End Runtime Trace", () => {
     const env: FacultyOSEnv = {
       DB: {} as any,
       RATE_LIMIT: {} as any,
-      ATTACHMENTS: {} as any,
-      ASSETS: {} as any,
       NOTIFICATIONS: {} as any,
       AI_JOBS: {} as any,
       AI: {} as any,

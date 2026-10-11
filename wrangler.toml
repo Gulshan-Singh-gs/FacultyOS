@@ -1,5 +1,5 @@
 name = "facultyos"
-main = ".open-next/worker.js"
+main = "worker-entrypoint.ts"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
 
@@ -14,26 +14,26 @@ BETTER_AUTH_TRUSTED_ORIGINS = "https://facultyos.gs-softwares.workers.dev,https:
 [[d1_databases]]
 binding = "DB"
 database_name = "facultyos"
-database_id = "de9668a3-b0ec-4f33-ab75-bc5e17c42224"
+database_id = "ca602aea-9aa7-4dec-acbe-b13d7ca2e99b"
 migrations_dir = "drizzle"
 
-[[d1_databases]]
-binding = "facultyos"
-database_name = "facultyos"
-database_id = "de9668a3-b0ec-4f33-ab75-bc5e17c42224"
-migrations_dir = "drizzle"
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
-id = "7a745a7585864c72b0bf23095c08f5e4"
+id = "b8c52c33c12d4f58a269807df91c69e8"
 
 [[queues.producers]]
 binding = "NOTIFICATIONS"
 queue = "notifications"
 
-[[queues.producers]]
-binding = "notifications"
+[[queues.consumers]]
 queue = "notifications"
+max_batch_size = 10
+max_batch_timeout = 5
+
+[triggers]
+crons = ["0 0 * * *", "0 8 * * 1", "0 2 * * *"]
+
 
 
 

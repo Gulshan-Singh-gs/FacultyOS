@@ -7,40 +7,43 @@
  *  - 0 8 * * 1   → Weekly Monday 8 AM: Send "Week Ahead" digest
  *  - 0 2 * * *   → Daily 2 AM: Purge expired free-tier data
  */
-const cronWorker = {
-  async scheduled(
-    event: ScheduledEvent,
-    _env: {
-      DB: D1Database;
-      KV: KVNamespace;
-      NOTIFICATIONS: Queue;
-    },
-    _ctx: ExecutionContext,
-  ): Promise<void> {
-    void _env;
-    void _ctx;
-    const { cron } = event;
-
-    switch (cron) {
-      case "0 0 * * *":
-        // TODO Phase 3: aggregate daily workload snapshots
-        console.log("[cron] daily workload snapshot – stub");
-        break;
-
-      case "0 8 * * 1":
-        // TODO Phase 3: send weekly boundary digest to professors
-        console.log("[cron] weekly digest – stub");
-        break;
-
-      case "0 2 * * *":
-        // TODO Phase 4: purge expired free-tier request data
-        console.log("[cron] data purge – stub");
-        break;
-
-      default:
-        console.warn(`[cron] unknown cron expression: ${cron}`);
-    }
+export async function handleCron(
+  event: ScheduledEvent,
+  _env: {
+    DB: D1Database;
+    KV?: KVNamespace;
+    RATE_LIMIT?: KVNamespace;
+    NOTIFICATIONS?: Queue;
   },
+  _ctx?: ExecutionContext,
+): Promise<void> {
+  void _env;
+  void _ctx;
+  const { cron } = event;
+
+  switch (cron) {
+    case "0 0 * * *":
+      // TODO Phase 3: aggregate daily workload snapshots
+      console.log("[cron] daily workload snapshot – stub");
+      break;
+
+    case "0 8 * * 1":
+      // TODO Phase 3: send weekly boundary digest to professors
+      console.log("[cron] weekly digest – stub");
+      break;
+
+    case "0 2 * * *":
+      // TODO Phase 4: purge expired free-tier request data
+      console.log("[cron] data purge – stub");
+      break;
+
+    default:
+      console.warn(`[cron] unknown cron expression: ${cron}`);
+  }
+}
+
+const cronWorker = {
+  scheduled: handleCron,
 };
 
 export default cronWorker;

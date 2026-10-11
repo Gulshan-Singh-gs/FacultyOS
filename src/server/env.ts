@@ -1,8 +1,6 @@
 export interface FacultyOSEnv {
   DB: D1Database;
   RATE_LIMIT: KVNamespace;
-  ATTACHMENTS?: R2Bucket;
-  ASSETS?: R2Bucket;
   NOTIFICATIONS?: Queue;
   AI_JOBS?: Queue;
   AI?: Ai;
@@ -35,4 +33,3 @@ export async function getServerEnv(): Promise<FacultyOSEnv> {
   }
   return envObj as unknown as FacultyOSEnv;
 }
-

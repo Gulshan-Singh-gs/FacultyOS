@@ -8,6 +8,9 @@ if (process.env.NODE_ENV === "development") {
 }
 
 const nextConfig: NextConfig = {
+  images: {
+    unoptimized: true,
+  },
   turbopack: {
     rules: {
       "*.css": {

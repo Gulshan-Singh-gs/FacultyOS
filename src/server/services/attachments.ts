@@ -22,20 +22,17 @@ export interface CreateAttachmentOptions {
   mimeType: string;
   fileSize: number;
   category: string;
-  fileBuffer?: ArrayBuffer | Uint8Array;
-  r2Bucket?: R2Bucket;
   actorType?: "professor" | "student";
   callerProfileId?: string; // If provided, ensures the caller owns the request course
 }
 
 /**
- * Creates an attachment record with strict validation:
+ * Creates an attachment metadata record with strict validation:
  * 1. Hard Rule 1: Rejects medical categories and unapproved categories.
  * 2. Strict MIME Allowlist: application/pdf, image/png, image/jpeg ONLY.
  * 3. Plan limits: Enforces max attachment size based on professor's plan.
- * 4. Stores object in Cloudflare R2 bucket (if provided).
- * 5. Inserts metadata row in attachments table.
- * 6. Inserts audit event in request_events.
+ * 4. Inserts metadata row in attachments table (no file storage — R2 removed).
+ * 5. Inserts audit event in request_events.
  */
 export async function createAttachmentRecord(
   db: Db,
@@ -47,8 +44,6 @@ export async function createAttachmentRecord(
     mimeType,
     fileSize,
     category,
-    fileBuffer,
-    r2Bucket,
     actorType = "professor",
     callerProfileId,
   } = options;
@@ -108,27 +103,13 @@ export async function createAttachmentRecord(
   // Enforce plan-based attachment size caps (5MB Free, 25MB Pro)
   assertAttachmentSizeWithinPlan(requestRow.plan || "free", fileSize);
 
-  // 4. Generate R2 key and upload if R2 bucket is bound
+  // 4. Generate unique attachment ID
   const attachmentId = nanoid();
-  const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const r2Key = `attachments/${requestId}/${attachmentId}-${sanitizedFileName}`;
-
-  if (r2Bucket && typeof r2Bucket.put === "function" && fileBuffer) {
-    await r2Bucket.put(r2Key, fileBuffer, {
-      httpMetadata: { contentType: mimeType },
-      customMetadata: {
-        requestId,
-        category,
-        fileName,
-      },
-    });
-  }
 
   // 5. Store metadata in attachments table
   await db.insert(attachments).values({
     id: attachmentId,
     requestId,
-    r2Key,
     fileName,
     mimeType,
     fileSize,
@@ -154,7 +135,6 @@ export async function createAttachmentRecord(
   return {
     id: attachmentId,
     requestId,
-    r2Key,
     fileName,
     mimeType,
     fileSize,

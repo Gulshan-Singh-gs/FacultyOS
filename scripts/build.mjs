@@ -154,6 +154,96 @@ try {
     console.log("✓ Pre-patched OpenNext find-dir plugin (resilience)");
   }
 
+  // B2. Pre-patch OpenNext copyTracedFiles for Windows EPERM symlink resilience
+  const pnpmNodeModules = path.resolve("node_modules/.pnpm");
+  if (fs.existsSync(pnpmNodeModules)) {
+    const pnpmDirs = fs.readdirSync(pnpmNodeModules);
+    for (const dir of pnpmDirs) {
+      if (dir.startsWith("@opennextjs+aws")) {
+        const copyTracedPath = path.join(
+          pnpmNodeModules,
+          dir,
+          "node_modules/@opennextjs/aws/dist/build/copyTracedFiles.js"
+        );
+        if (fs.existsSync(copyTracedPath)) {
+          let content = fs.readFileSync(copyTracedPath, "utf-8");
+          if (!content.includes('e.code === "EPERM"')) {
+            content = content.replace(
+              'if (e.code !== "EEXIST") {',
+              'if (e.code === "EPERM") { try { const target = path.resolve(path.dirname(from), symlink); if (fs.existsSync(target) && fs.statSync(target).isDirectory()) { fs.cpSync(target, to, { recursive: true }); } else { copyFileAndMakeOwnerWritable(target, to); } } catch (_) {} } else if (e.code !== "EEXIST") {'
+            );
+            fs.writeFileSync(copyTracedPath, content, "utf-8");
+            console.log("✓ Pre-patched copyTracedFiles.js for Windows symlink resilience");
+          }
+        }
+      }
+    }
+  }
+
+  // B3. Pre-patch OpenNext patch-vercel-og-library to prevent ENOENT
+  const patchVercelOgPath = path.resolve(
+    "node_modules/@opennextjs/cloudflare/dist/cli/build/patches/ast/patch-vercel-og-library.js"
+  );
+  if (fs.existsSync(patchVercelOgPath)) {
+    let content = fs.readFileSync(patchVercelOgPath, "utf-8");
+    let changed = false;
+    if (!content.includes("mkdirSync,")) {
+      content = content.replace("copyFileSync,", "copyFileSync, mkdirSync,");
+      changed = true;
+    }
+    if (!content.includes("mkdirSync(outputDir")) {
+      content = content.replace(
+        "copyFileSync(tracedEdgePath, outputEdgePath);",
+        "if (existsSync(tracedEdgePath)) { mkdirSync(outputDir, { recursive: true }); copyFileSync(tracedEdgePath, outputEdgePath); }"
+      );
+      content = content.replace(
+        "// Change font fetches in the library to use imports.\n        {",
+        "// Change font fetches in the library to use imports.\n        if (existsSync(outputEdgePath)) {"
+      );
+      content = content.replace(
+        "renameSync(path.join(outputDir, fontFileName), path.join(outputDir, `${fontFileName}.bin`));",
+        "const fontPath = path.join(outputDir, fontFileName); if (existsSync(fontPath)) { renameSync(fontPath, path.join(outputDir, `${fontFileName}.bin`)); }"
+      );
+      content = content.replace(
+        "const ast = parseFile(routeFilePath);\n            const { edits } = patchVercelOgImport(ast);\n            writeFileSync(routeFilePath, ast.commitEdits(edits));",
+        "if (existsSync(routeFilePath)) { const ast = parseFile(routeFilePath); const { edits } = patchVercelOgImport(ast); writeFileSync(routeFilePath, ast.commitEdits(edits)); }"
+      );
+      changed = true;
+    }
+    if (changed) {
+      fs.writeFileSync(patchVercelOgPath, content, "utf-8");
+      console.log("✓ Pre-patched patch-vercel-og-library for safe directory handling");
+    }
+  }
+
+  // B4. Pre-patch bundle-server.js to stub native node addons
+  const bundleServerPath = path.resolve(
+    "node_modules/@opennextjs/cloudflare/dist/cli/build/bundle-server.js"
+  );
+  if (fs.existsSync(bundleServerPath)) {
+    let content = fs.readFileSync(bundleServerPath, "utf-8");
+    if (!content.includes("stub-native-node-addons")) {
+      content = content.replace(
+        "plugins: [",
+        `plugins: [
+            {
+                name: "stub-native-node-addons",
+                setup(build) {
+                    build.onResolve({ filter: /(^(@img\\/sharp|sharp)(\\/.*)?$|\\.node$)/ }, () => ({
+                        path: "native-node-stub",
+                        namespace: "native-node-stub",
+                    }));
+                    build.onLoad({ filter: /.*/, namespace: "native-node-stub" }, () => ({
+                        contents: "module.exports = {}; export default {};",
+                    }));
+                },
+            },`
+      );
+      fs.writeFileSync(bundleServerPath, content, "utf-8");
+      console.log("✓ Pre-patched bundle-server.js to stub native node addons");
+    }
+  }
+
   // C. Pre-patch Next.js base-server to expose actual runtime error instead of opaque 'Internal Server Error'
   const nextBaseServerPath = path.resolve("node_modules/next/dist/server/base-server.js");
   if (fs.existsSync(nextBaseServerPath)) {

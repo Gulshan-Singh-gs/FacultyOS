@@ -60,6 +60,9 @@ export function createAuth(db: Db, secret?: string, baseURL?: string) {
     },
     advanced: {
       cookiePrefix: "facultyos",
+      useSecureCookies: true,
+      // Do NOT pass domain: "workers.dev" or domain: ".gs-softwares.workers.dev".
+      // Omitting domain leaves cookies host-only, which prevents rejection on Public Suffix List (PSL) domains.
     },
   });
 }
@@ -72,5 +75,11 @@ export async function getAuth() {
     );
   }
   const db = createDb(env.DB);
-  return createAuth(db, env.BETTER_AUTH_SECRET, (env as any).BETTER_AUTH_URL);
+  const secret = env.BETTER_AUTH_SECRET || process.env.BETTER_AUTH_SECRET;
+  if (!secret && process.env.NODE_ENV === "production") {
+    console.warn(
+      "[FacultyOS Auth Warning] BETTER_AUTH_SECRET is not configured in Cloudflare Workers secrets. Run `npx wrangler secret put BETTER_AUTH_SECRET` to ensure encrypted token integrity."
+    );
+  }
+  return createAuth(db, secret, (env as any).BETTER_AUTH_URL);
 }

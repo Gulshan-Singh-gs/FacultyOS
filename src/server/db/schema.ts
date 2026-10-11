@@ -233,7 +233,6 @@ export const attachments = sqliteTable("attachments", {
   requestId: text("request_id")
     .notNull()
     .references(() => requests.id, { onDelete: "cascade" }),
-  r2Key: text("r2_key").notNull(),
   fileName: text("file_name").notNull(),
   mimeType: text("mime_type").notNull(),
   fileSize: integer("file_size").notNull(),
@@ -318,7 +317,6 @@ export const ledgerEntries = sqliteTable(
     startDate: text("start_date"),
     endDate: text("end_date"),
     hoursPerMonth: integer("hours_per_month"),
-    evidenceR2Key: text("evidence_r2_key"),
     notes: text("notes"),
     createdAt: now(),
     updatedAt: touched(),
@@ -334,7 +332,6 @@ export const reports = sqliteTable("reports", {
   reportType: text("report_type").notNull(),
   periodStart: text("period_start").notNull(),
   periodEnd: text("period_end").notNull(),
-  outputR2Key: text("output_r2_key"),
   status: text("status").notNull().default("pending"),
   createdAt: now(),
 });

@@ -14,8 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:migrate:local": "wrangler d1 migrations apply facultyos --local",
-    "db:migrate:prod": "wrangler d1 migrations apply facultyos --remote"
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:prod": "wrangler d1 migrations apply DB --remote"
   },
   "dependencies": {
     "better-auth": "^1.7.7",

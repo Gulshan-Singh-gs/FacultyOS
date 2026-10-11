@@ -24,34 +24,15 @@ export async function GET(
 
     const { attachment } = result;
 
-    // Check Cloudflare R2 bucket for the object
-    const r2Bucket = env.ATTACHMENTS ?? env.ASSETS;
-    if (r2Bucket && typeof r2Bucket.get === "function") {
-      const object = await r2Bucket.get(attachment.r2Key);
-      if (object) {
-        const headers = new Headers();
-        headers.set("Content-Type", attachment.mimeType);
-        headers.set(
-          "Content-Disposition",
-          `inline; filename="${encodeURIComponent(attachment.fileName)}"`,
-        );
-        headers.set("Content-Length", String(attachment.fileSize));
-        headers.set("Cache-Control", "private, max-age=3600");
-
-        return new Response(object.body, { headers });
-      }
-    }
-
-    // Fallback if R2 object is not found or in local dev/test environment
-    return new Response(
-      `FacultyOS Document: ${attachment.fileName} (${attachment.mimeType}, ${attachment.fileSize} bytes)`,
-      {
-        headers: {
-          "Content-Type": "text/plain",
-          "Content-Disposition": `inline; filename="${encodeURIComponent(attachment.fileName)}"`,
-        },
-      },
-    );
+    // Return attachment metadata (no R2 file storage — files are not persisted server-side)
+    return NextResponse.json({
+      id: attachment.id,
+      fileName: attachment.fileName,
+      mimeType: attachment.mimeType,
+      fileSize: attachment.fileSize,
+      category: attachment.category,
+      createdAt: attachment.createdAt,
+    });
   } catch (error) {
     if (error instanceof RequestAccessError) {
       return NextResponse.json({ error: "Forbidden: Unauthorized access" }, { status: 403 });

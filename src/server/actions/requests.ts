@@ -118,16 +118,12 @@ export async function uploadAttachmentAction(formData: FormData) {
     throw new Error("Missing request ID.");
   }
 
-  const arrayBuffer = await file.arrayBuffer();
-
   const attachment = await createAttachmentRecord(db, {
     requestId,
     fileName: file.name,
     mimeType: file.type,
     fileSize: file.size,
     category,
-    fileBuffer: arrayBuffer,
-    r2Bucket: env.ATTACHMENTS ?? env.ASSETS,
     actorType: "professor",
     callerProfileId: profile.id,
   });

@@ -158,7 +158,6 @@ export function RequestDetailView({ data }: RequestDetailViewProps) {
           {
             id: res.attachment.id,
             requestId: request.id,
-            r2Key: res.attachment.r2Key,
             fileName: res.attachment.fileName,
             mimeType: res.attachment.mimeType,
             fileSize: res.attachment.fileSize,
