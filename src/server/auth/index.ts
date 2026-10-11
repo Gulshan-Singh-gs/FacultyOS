@@ -12,7 +12,7 @@ export function createAuth(db: Db, secret: string, baseURL?: string) {
       (process.env.NODE_ENV === "production"
         ? "https://facultyos.gs-softwares.workers.dev"
         : "http://localhost:3000"),
-    trustedOrigins: async (request?: Request) => {
+    trustedOrigins: (request?: Request) => {
       const allowed = [
         "https://facultyos.gs-softwares.workers.dev",
         "https://*.workers.dev",

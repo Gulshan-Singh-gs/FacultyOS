@@ -150,8 +150,13 @@ try {
       /throw new Error\(`Unexpected findDir\(\$\{\$DIR\}, \$\{\$NAME\}\) call!`\);/g,
       "return false;"
     );
+    // Force pages to return false since FacultyOS uses App Router exclusively:
+    content = content.replace(
+      'if ($NAME === "pages") {\n        return ${pagesExists};\n      }',
+      'if ($NAME === "pages") {\n        return false;\n      }'
+    );
     fs.writeFileSync(findDirPluginPath, content, "utf-8");
-    console.log("✓ Pre-patched OpenNext find-dir plugin (resilience)");
+    console.log("✓ Pre-patched OpenNext find-dir plugin (app router exclusive)");
   }
 
   // B2. Pre-patch OpenNext copyTracedFiles for Windows EPERM symlink resilience
@@ -437,6 +442,8 @@ try {
       workerCode = workerCode.replace(
         "return runWithCloudflareRequestContext(request, env, ctx, async () => {",
         `try {
+          globalThis.__CF_ENV__ = env;
+          globalThis.__CF_CTX__ = ctx;
           return await runWithCloudflareRequestContext(request, env, ctx, async () => {`
       );
       const lastFetchBrace = workerCode.lastIndexOf("    },\n};");
@@ -616,6 +623,65 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
           code = code.replace(/\b\w+\(\w+,\s*(?:new\s+)?Error\(['"]Connection closed\.['"]\)\)/g, "void 0");
           modified = true;
         }
+        if (code.includes('Dynamic require of')) {
+          code = code.replace(
+            /throw (?:new )?Error\([^)]*Dynamic require of[^)]*\)/g,
+            "if (typeof x === 'string' && (x.includes('middleware-manifest') || x.includes('manifest'))) { return { version: 3, middleware: {}, sortedMiddleware: [], functions: {} }; } throw Error('Dynamic require of \"' + x + '\" is not supported')"
+          );
+          modified = true;
+        }
+        if (code.includes('path2.endsWith("/server/middleware-manifest.json")')) {
+          code = code.replace(
+            /path2\.endsWith\("\/server\/middleware-manifest\.json"\)/g,
+            'path2.includes("middleware-manifest.json")'
+          );
+          modified = true;
+        }
+        if (code.includes('this.getMiddleware()')) {
+          code = code.replace(
+            /async getMiddleware\(\)\s*\{[\s\S]*?return\{match:getMiddlewareMatcher\(middleware\),page:"\/"\}\}/g,
+            'async getMiddleware(){ return null; }'
+          );
+          code = code.replace(
+            /getMiddleware\(\)\s*\{[\s\S]*?return\{match:getMiddlewareMatcher\(middleware\),page:"\/"\}\}/g,
+            'getMiddleware(){ return null; }'
+          );
+          modified = true;
+        }
+        if (code.includes('promiseResponse,resolve:resolveResponse') || code.includes('Promise.withResolvers()')) {
+          code = code.replace(
+            /return ctx\.waitUntil\(handler3\(internalEvent,\{streamCreator,waitUntil:ctx\.waitUntil\.bind\(ctx\)\}\)\),promiseResponse/g,
+            `const timeoutId = setTimeout(() => {
+              try {
+                resolveResponse(
+                  new Response(
+                    "FacultyOS Gateway Timeout: Server took longer than 25s to generate a response.",
+                    { status: 504, headers: { "content-type": "text/plain; charset=utf-8" } }
+                  )
+                );
+              } catch (_) {}
+            }, 25000);
+            ctx.waitUntil(
+              handler3(internalEvent, { streamCreator, waitUntil: ctx.waitUntil.bind(ctx) })
+                .catch((err) => {
+                  console.error("[FacultyOS OpenNext Handler Error]", err);
+                  try {
+                    resolveResponse(
+                      new Response(
+                        "FacultyOS SSR Error: " + ((err && (err.stack || err.message)) || String(err)),
+                        { status: 500, headers: { "content-type": "text/plain; charset=utf-8" } }
+                      )
+                    );
+                  } catch (_) {}
+                })
+                .finally(() => {
+                  clearTimeout(timeoutId);
+                })
+            );
+            return promiseResponse;`
+          );
+          modified = true;
+        }
         if (code.includes("getMiddlewareManifest")) {
           code = code.replace(
             /getMiddlewareManifest\(\)\s*\{[^}]*require\([^)]*middlewareManifestPath[^)]*\)[^}]*\}/g,
@@ -629,6 +695,22 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
             /getMiddlewareManifest\(\)\s*\{return[^}]*require\([^)]*\)\}/g,
             "getMiddlewareManifest(){ return null; }"
           );
+          code = code.replace(
+            /getMiddlewareManifest\(\)\s*\{return this\.getMiddlewareManifest\(\)\}/g,
+            "getMiddlewareManifest(){ return null; }"
+          );
+          modified = true;
+        }
+        if (code.includes('name==="pages"')) {
+          code = code.replace(/name==="pages"\s*\?\s*true/g, 'name==="pages" ? false');
+          code = code.replace(/name==="pages"\s*\?\s*!0/g, 'name==="pages" ? !1');
+          code = code.replace(/name==="pages"\s*:\s*true/g, 'name==="pages" : false');
+          code = code.replace(/name==="pages"\s*:\s*!0/g, 'name==="pages" : !1');
+          code = code.replace(/name==="app"\|\|name==="pages"/g, 'name==="app"');
+          modified = true;
+        }
+        if (code.includes('this.enabledDirectories.pages')) {
+          code = code.replace(/this\.enabledDirectories\.pages/g, 'false');
           modified = true;
         }
         if (modified) {

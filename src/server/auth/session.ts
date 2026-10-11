@@ -106,7 +106,10 @@ export async function requireProfile(): Promise<AuthenticatedContext> {
   try {
     const auth = await getAuth();
     session = await auth.api.getSession({ headers: reqHeaders });
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.digest?.startsWith?.("NEXT_REDIRECT")) {
+      throw err;
+    }
     console.warn("[FacultyOS requireProfile] getSession threw error, redirecting to login:", err);
     redirect("/login");
   }
