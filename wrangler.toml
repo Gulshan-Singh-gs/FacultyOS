@@ -24,10 +24,6 @@ database_id = "ca602aea-9aa7-4dec-acbe-b13d7ca2e99b"
 migrations_dir = "drizzle"
 
 
-[[kv_namespaces]]
-binding = "RATE_LIMIT"
-id = "b8c52c33c12d4f58a269807df91c69e8"
-
 [[queues.producers]]
 binding = "NOTIFICATIONS"
 queue = "notifications"
