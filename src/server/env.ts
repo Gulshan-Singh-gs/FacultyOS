@@ -6,8 +6,8 @@ export interface FacultyOSEnv {
   AI?: Ai;
   BETTER_AUTH_SECRET: string;
   RESEND_API_KEY: string;
-  RAZORPAY_KEY_ID: string;
-  RAZORPAY_KEY_SECRET: string;
+  PADDLE_API_KEY: string;
+  PADDLE_WEBHOOK_SECRET_KEY: string;
   TURNSTILE_SECRET_KEY: string;
 }
 

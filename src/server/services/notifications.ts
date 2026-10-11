@@ -82,12 +82,17 @@ export async function processNotificationQueueMessage(
   db: Db,
   env: FacultyOSEnv,
   msg: NotificationQueueMessage,
-  baseUrl = "https://facultyos.edu",
+  baseUrl?: string,
 ): Promise<{
   success: boolean;
   studentNotified: boolean;
   professorNotified: boolean;
 }> {
+  // Resolve base URL: caller-provided > env binding > hardcoded fallback
+  const resolvedBaseUrl =
+    baseUrl ||
+    (env as any).BETTER_AUTH_URL ||
+    "https://facultyos.gs-softwares.workers.dev";
   const { requestId } = msg;
   if (!requestId) {
     return { success: false, studentNotified: false, professorNotified: false };
@@ -143,7 +148,7 @@ export async function processNotificationQueueMessage(
     requestType: request.requestType,
     status: request.status,
     statusMessage,
-    statusUrl: `${baseUrl}/r/${request.publicToken}`,
+    statusUrl: `${resolvedBaseUrl}/r/${request.publicToken}`,
     reasons,
   });
 
@@ -180,7 +185,7 @@ export async function processNotificationQueueMessage(
       requestType: request.requestType,
       studentDisplayLabel: student.displayLabel || `Student #${student.id.slice(0, 6)}`,
       priority: request.priority,
-      inboxUrl: `${baseUrl}/inbox/${request.id}`,
+      inboxUrl: `${resolvedBaseUrl}/inbox/${request.id}`,
       submittedAt: request.createdAt ? new Date(request.createdAt).toLocaleString() : undefined,
       reasonSummary: reasonSummary.slice(0, 200),
     });

@@ -4,12 +4,11 @@ import * as schema from "@/server/db/schema";
 import { createDb, type Db } from "@/server/db";
 import { getServerEnv } from "@/server/env";
 
-export function createAuth(db: Db, secret?: string, baseURL?: string) {
+export function createAuth(db: Db, secret: string, baseURL?: string) {
   return betterAuth({
-    secret: secret || process.env.BETTER_AUTH_SECRET || "facultyos-default-secret-at-least-32-chars",
+    secret,
     baseURL:
       baseURL ||
-      process.env.BETTER_AUTH_URL ||
       (process.env.NODE_ENV === "production"
         ? "https://facultyos.gs-softwares.workers.dev"
         : "http://localhost:3000"),
@@ -75,11 +74,24 @@ export async function getAuth() {
     );
   }
   const db = createDb(env.DB);
-  const secret = env.BETTER_AUTH_SECRET || process.env.BETTER_AUTH_SECRET;
-  if (!secret && process.env.NODE_ENV === "production") {
-    console.warn(
-      "[FacultyOS Auth Warning] BETTER_AUTH_SECRET is not configured in Cloudflare Workers secrets. Run `npx wrangler secret put BETTER_AUTH_SECRET` to ensure encrypted token integrity."
-    );
+
+  // Resolve secret: prefer the Cloudflare Workers secret binding, then process.env (local dev only)
+  const secret =
+    env.BETTER_AUTH_SECRET ||
+    (process.env as any).BETTER_AUTH_SECRET;
+
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "[FacultyOS] BETTER_AUTH_SECRET is not configured. " +
+        "Run: npx wrangler secret put BETTER_AUTH_SECRET"
+      );
+    }
+    // Local dev only — use a deterministic dev secret so sessions persist across restarts
+    console.warn("[FacultyOS Auth] Using dev-only secret. Set BETTER_AUTH_SECRET for production.");
   }
-  return createAuth(db, secret, (env as any).BETTER_AUTH_URL);
+
+  const resolvedSecret = secret || "facultyos-dev-secret-do-not-use-in-production";
+  const baseURL = (env as any).BETTER_AUTH_URL || undefined;
+  return createAuth(db, resolvedSecret, baseURL);
 }

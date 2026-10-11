@@ -393,8 +393,8 @@ describe("Phase 2 Exit Proof — 7-Step End-to-End Runtime Trace", () => {
       AI: {} as any,
       BETTER_AUTH_SECRET: "sec",
       RESEND_API_KEY: "mock_resend_key",
-      RAZORPAY_KEY_ID: "",
-      RAZORPAY_KEY_SECRET: "",
+      PADDLE_API_KEY: "",
+      PADDLE_WEBHOOK_SECRET_KEY: "",
       TURNSTILE_SECRET_KEY: "",
     };
 

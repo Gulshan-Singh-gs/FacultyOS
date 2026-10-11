@@ -10,6 +10,11 @@ binding = "ASSETS"
 [vars]
 BETTER_AUTH_URL = "https://facultyos.gs-softwares.workers.dev"
 BETTER_AUTH_TRUSTED_ORIGINS = "https://facultyos.gs-softwares.workers.dev,https://*.workers.dev,https://facultyos.com,http://localhost:3000"
+NEXT_PUBLIC_PADDLE_ENVIRONMENT = "production"
+NEXT_PUBLIC_PADDLE_CLIENT_TOKEN = "live_e6cf5d84a9bebe17a33235fdc42"
+NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY = "pri_01m4mwgb41h1bqc8p81cg0ee4g"
+NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER = "pri_01m4mwpvt6wevqx3dty501tdcx"
+NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY = "pri_01m4mwvdhcv3hyrymyxazr1rwt"
 
 [[d1_databases]]
 binding = "DB"

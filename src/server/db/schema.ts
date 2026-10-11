@@ -368,11 +368,14 @@ export const subscriptions = sqliteTable("subscriptions", {
   profileId: text("profile_id")
     .notNull()
     .references(() => professorProfiles.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull().default("razorpay"),
-  providerSubscriptionId: text("provider_subscription_id"),
+  provider: text("provider").notNull().default("paddle"),
+  customerId: text("customer_id"),
+  providerSubscriptionId: text("provider_subscription_id").unique(),
+  priceId: text("price_id"),
   plan: text("plan").notNull(),
   status: text("status").notNull().default("active"),
   currentPeriodEnd: integer("current_period_end", { mode: "timestamp_ms" }),
+  cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" }).default(false),
   createdAt: now(),
   updatedAt: touched(),
 });
