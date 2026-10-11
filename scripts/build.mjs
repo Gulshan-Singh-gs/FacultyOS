@@ -616,6 +616,21 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
           code = code.replace(/\b\w+\(\w+,\s*(?:new\s+)?Error\(['"]Connection closed\.['"]\)\)/g, "void 0");
           modified = true;
         }
+        if (code.includes("getMiddlewareManifest")) {
+          code = code.replace(
+            /getMiddlewareManifest\(\)\s*\{[^}]*require\([^)]*middlewareManifestPath[^)]*\)[^}]*\}/g,
+            "getMiddlewareManifest(){ return null; }"
+          );
+          code = code.replace(
+            /getMiddlewareManifest\(\)\s*\{return this\.minimalMode\?null:require\(this\.middlewareManifestPath\)\}/g,
+            "getMiddlewareManifest(){ return null; }"
+          );
+          code = code.replace(
+            /getMiddlewareManifest\(\)\s*\{return[^}]*require\([^)]*\)\}/g,
+            "getMiddlewareManifest(){ return null; }"
+          );
+          modified = true;
+        }
         if (modified) {
           fs.writeFileSync(fullPath, code, "utf-8");
           console.log(`✓ Post-patched ${path.relative(process.cwd(), fullPath)} for loadManifest resilience`);
