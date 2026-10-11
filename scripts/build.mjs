@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import vm from "node:vm";
 
 // ⚠️ RECURSION GUARD:
 // When OpenNext runs its "Building Next.js app" phase, it executes the project's "pnpm run build".
@@ -18,12 +19,100 @@ console.log("=== Building FacultyOS for Cloudflare Deployment ===");
 const isWindows = process.platform === "win32";
 const isCloudflare = process.env.CF_PAGES === "1" || process.env.CI === "true" || !isWindows;
 
-const singletonHelperCode = `
+function collectManifestData() {
+  const nextAppServerDir = path.resolve(".next/server/app");
+  const manifests = {};
+  const masterSsr = {};
+  const masterRsc = {};
+  let serverRef = { node: {}, edge: {}, encryptionKey: "" };
+
+  const serverRefPath = path.resolve(".next/server/server-reference-manifest.json");
+  if (fs.existsSync(serverRefPath)) {
+    try {
+      serverRef = JSON.parse(fs.readFileSync(serverRefPath, "utf-8"));
+    } catch (_) {}
+  }
+
+  if (fs.existsSync(nextAppServerDir)) {
+    function walk(dir) {
+      let results = [];
+      for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, f.name);
+        if (f.isDirectory()) results.push(...walk(full));
+        else if (f.name.endsWith("client-reference-manifest.js")) results.push(full);
+      }
+      return results;
+    }
+
+    const files = walk(nextAppServerDir);
+    for (const file of files) {
+      try {
+        const code = fs.readFileSync(file, "utf-8");
+        const ctx = { globalThis: {} };
+        vm.runInNewContext(code, ctx);
+        if (ctx.globalThis.__RSC_MANIFEST) {
+          for (const [routeKey, manifest] of Object.entries(ctx.globalThis.__RSC_MANIFEST)) {
+            manifests[routeKey] = manifest;
+
+            const cleanGroups = routeKey.replace(/\/\([^)]+\)/g, "");
+            const noSuffix = routeKey.replace(/\/(page|route)$/, "");
+            const cleanNoSuffix = cleanGroups.replace(/\/(page|route)$/, "");
+
+            for (const a of [cleanGroups, noSuffix, cleanNoSuffix]) {
+              if (a) {
+                manifests[a] = manifest;
+                if (a.startsWith("/")) manifests[a.slice(1)] = manifest;
+                else manifests["/" + a] = manifest;
+              }
+            }
+            if (routeKey.startsWith("/")) manifests[routeKey.slice(1)] = manifest;
+            else manifests["/" + routeKey] = manifest;
+
+            if (manifest.ssrModuleMapping) {
+              Object.assign(masterSsr, manifest.ssrModuleMapping);
+            }
+            if (manifest.rscModuleMapping) {
+              Object.assign(masterRsc, manifest.rscModuleMapping);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`⚠️ Error reading manifest ${file}:`, err);
+      }
+    }
+  }
+
+  return { manifests, masterSsr, masterRsc, serverRef };
+}
+
+function generateManifestCode(data) {
+  const manifestsJson = JSON.stringify(data?.manifests || {});
+  const masterSsrJson = JSON.stringify(data?.masterSsr || {});
+  const masterRscJson = JSON.stringify(data?.masterRsc || {});
+  const serverRefJson = JSON.stringify(data?.serverRef || { node: {}, edge: {}, encryptionKey: "" });
+
+  return `
+var __EMBEDDED_RSC_MANIFEST = ${manifestsJson};
+var __EMBEDDED_SSR_MAPPING = ${masterSsrJson};
+var __EMBEDDED_RSC_MAPPING = ${masterRscJson};
+var __EMBEDDED_SERVER_REF = ${serverRefJson};
+
+globalThis.__RSC_MANIFEST = Object.assign(globalThis.__RSC_MANIFEST || {}, __EMBEDDED_RSC_MANIFEST);
+globalThis.__SERVER_REFERENCE_MANIFEST = __EMBEDDED_SERVER_REF;
+
 var _manifestsSymbol = Symbol.for("next.server.manifests");
 var _initNextManifests = function() {
   if (globalThis[_manifestsSymbol]) return globalThis[_manifestsSymbol];
   var clientReferenceManifestsPerRoute = new Map();
-  var mappingProxies = new Map();
+  for (var k in __EMBEDDED_RSC_MANIFEST) {
+    var m = __EMBEDDED_RSC_MANIFEST[k];
+    clientReferenceManifestsPerRoute.set(k, {
+      clientReferenceManifest: m,
+      rscModuleMapping: m.rscModuleMapping || __EMBEDDED_RSC_MAPPING,
+      ssrModuleMapping: m.ssrModuleMapping || __EMBEDDED_SSR_MAPPING,
+    });
+  }
+
   var wrapModuleExports = function(entry) {
     if (!entry || typeof entry !== "object") return entry;
     if (entry["*"] || entry.id === undefined) return entry;
@@ -35,10 +124,13 @@ var _initNextManifests = function() {
       }
     });
   };
-  var createMappingProxy = function(prop) {
-    return new Proxy({}, {
-      get: function(_, id) {
+
+  var createMappingProxy = function(prop, masterMap) {
+    return new Proxy(masterMap || {}, {
+      get: function(target, id) {
+        if (id in target) return wrapModuleExports(target[id]);
         var baseId = typeof id === "string" ? id.split("#")[0] : id;
+        if (baseId in target) return wrapModuleExports(target[baseId]);
         for (var pair of clientReferenceManifestsPerRoute.values()) {
           var m = pair && pair.clientReferenceManifest;
           if (m && m[prop]) {
@@ -61,14 +153,18 @@ var _initNextManifests = function() {
           "*": { id: String(id), name: "*", chunks: [], async: false }
         };
         return new Proxy(fallbackEntry, {
-          get: function(target, exp) {
-            if (exp in target) return target[exp];
+          get: function(t, exp) {
+            if (exp in t) return t[exp];
             return { id: String(id), name: String(exp), chunks: [], async: false };
           }
         });
       }
     });
   };
+
+  var ssrProxy = createMappingProxy("ssrModuleMapping", __EMBEDDED_SSR_MAPPING);
+  var rscProxy = createMappingProxy("rscModuleMapping", __EMBEDDED_RSC_MAPPING);
+
   var proxiedClientReferenceManifest = new Proxy({}, {
     get: function(_, prop) {
       if (prop === "moduleLoading" || prop === "entryCSSFiles" || prop === "entryJSFiles") {
@@ -78,14 +174,8 @@ var _initNextManifests = function() {
         }
         return {};
       }
-      if (prop === "clientModules" || prop === "rscModuleMapping" || prop === "edgeRscModuleMapping" || prop === "ssrModuleMapping" || prop === "edgeSSRModuleMapping") {
-        var proxy = mappingProxies.get(prop);
-        if (!proxy) {
-          proxy = createMappingProxy(prop);
-          mappingProxies.set(prop, proxy);
-        }
-        return proxy;
-      }
+      if (prop === "ssrModuleMapping" || prop === "edgeSSRModuleMapping") return ssrProxy;
+      if (prop === "rscModuleMapping" || prop === "edgeRscModuleMapping" || prop === "clientModules") return rscProxy;
       for (var pair of clientReferenceManifestsPerRoute.values()) {
         var m = pair && pair.clientReferenceManifest;
         if (m && m[prop]) return m[prop];
@@ -93,11 +183,12 @@ var _initNextManifests = function() {
       return {};
     }
   });
+
   var singleton = {
     clientReferenceManifestsPerRoute: clientReferenceManifestsPerRoute,
     proxiedClientReferenceManifest: proxiedClientReferenceManifest,
     rscModuleMappingForUseCache: proxiedClientReferenceManifest,
-    serverActionsManifest: { node: {}, edge: {}, encryptionKey: "" },
+    serverActionsManifest: __EMBEDDED_SERVER_REF || { node: {}, edge: {}, encryptionKey: "" },
     serverModuleMap: new Proxy({}, {
       get: function(_, id) { return { id: String(id), name: "*", chunks: [], async: false }; }
     })
@@ -107,7 +198,21 @@ var _initNextManifests = function() {
 };
 globalThis._initNextManifests = _initNextManifests;
 try { _initNextManifests(); } catch (e) {}
+
+var evalManifestFromRelativePath = globalThis.evalManifestFromRelativePath = function({ projectDir, distDir, manifest, shouldCache, cache, handleMissing } = {}) {
+  return { __RSC_MANIFEST: globalThis.__RSC_MANIFEST || __EMBEDDED_RSC_MANIFEST };
+};
+
+var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = function({ projectDir, distDir, manifest, shouldCache, cache, skipParse, handleMissing } = {}) {
+  if (manifest && manifest.includes("server-reference-manifest")) {
+    return globalThis.__SERVER_REFERENCE_MANIFEST || __EMBEDDED_SERVER_REF;
+  }
+  return {};
+};
 `;
+}
+
+let singletonHelperCode = generateManifestCode(collectManifestData());
 
 // 0. Pre-patch plugins and Next.js base-server for error transparency and Next 16 Turbopack compatibility
 try {
@@ -127,14 +232,14 @@ try {
         'p.endsWith("prefetch-hints") || p.endsWith("preview-props")'
       );
     }
-    // Make loadManifest and evalManifest never throw unexpected errors
+    // Make loadManifest and evalManifest never throw unexpected errors and return real data
     content = content.replace(
       /throw new Error\(`Unexpected loadManifest\(\$\{\$PATH\}\) call!`\);/g,
-      "return {};"
+      'return ($PATH.includes("server-reference-manifest") ? (globalThis.__SERVER_REFERENCE_MANIFEST || {}) : {});'
     );
     content = content.replace(
       /throw new Error\(`Unexpected evalManifest\(\$\{\$PATH\}\) call!`\);/g,
-      "return { __RSC_MANIFEST: {} };"
+      "return { __RSC_MANIFEST: (globalThis.__RSC_MANIFEST || {}) };"
     );
     fs.writeFileSync(loadManifestPluginPath, content, "utf-8");
     console.log("✓ Pre-patched OpenNext load-manifest plugin (preview-props + resilience)");
@@ -363,6 +468,10 @@ try {
     execSync("npx opennextjs-cloudflare build", { stdio: "inherit" });
   }
 
+  const manifestData = collectManifestData();
+  singletonHelperCode = generateManifestCode(manifestData);
+  console.log(`✓ Collected and prepared manifests: ${Object.keys(manifestData.manifests).length} route entries, ${Object.keys(manifestData.masterSsr).length} SSR components, ${Object.keys(manifestData.serverRef.node || {}).length} server actions`);
+
   const openNextDir = path.resolve(".open-next");
   const assetsDir = path.resolve(".open-next/assets");
   const workerPath = path.resolve(".open-next/worker.js");
@@ -506,7 +615,7 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
 `;
         workerCode = helperSnippet + "\n" + workerCode;
       }
-      if (!workerCode.includes("globalThis._initNextManifests")) {
+      if (!workerCode.includes("__EMBEDDED_RSC_MANIFEST")) {
         workerCode = singletonHelperCode + "\n" + workerCode;
       }
       workerCode = workerCode.replace(
@@ -541,10 +650,21 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
       } else if (entry.isFile() && (entry.name.endsWith(".js") || entry.name.endsWith(".mjs"))) {
         let code = fs.readFileSync(fullPath, "utf-8");
         let modified = false;
+        if (entry.name === "handler.mjs" && !code.includes("__EMBEDDED_RSC_MANIFEST")) {
+          code = singletonHelperCode + "\n" + code;
+          modified = true;
+        }
+        if (code.includes("evalManifestWithRetries")) {
+          code = code.replace(
+            /return\s*\(0,\s*_loadmanifestexternal\.evalManifest\)\(manifestPath\);/g,
+            "return { __RSC_MANIFEST: (globalThis.__RSC_MANIFEST || {}) };"
+          );
+          modified = true;
+        }
         if (code.includes("evalManifestFromRelativePath")) {
           code = code.replace(
             /evalManifestFromRelativePath:\s*(?:function\(\)\s*\{\s*return\s*evalManifestFromRelativePath;?\s*\}|\(\)\s*=>\s*evalManifestFromRelativePath)/g,
-            "evalManifestFromRelativePath: () => (globalThis.evalManifestFromRelativePath || function() { return { __RSC_MANIFEST: {} }; })"
+            "evalManifestFromRelativePath: () => (globalThis.evalManifestFromRelativePath || function() { return { __RSC_MANIFEST: (globalThis.__RSC_MANIFEST || {}) }; })"
           );
           code = code.replace(
             /loadManifestFromRelativePath:\s*(?:function\(\)\s*\{\s*return\s*loadManifestFromRelativePath;?\s*\}|\(\)\s*=>\s*loadManifestFromRelativePath)/g,
@@ -559,7 +679,7 @@ var evalManifestFromRelativePath = globalThis.evalManifestFromRelativePath = fun
       return evalManifest(p, shouldCache, cache, handleMissing);
     }
   } catch (e) {}
-  return { __RSC_MANIFEST: {} };
+  return { __RSC_MANIFEST: (globalThis.__RSC_MANIFEST || {}) };
 };
 var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = function({ projectDir, distDir, manifest, shouldCache, cache, skipParse, handleMissing } = {}) {
   try {
@@ -580,7 +700,10 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
             "throw new Error\\([\\x60\\x22\\x27]Unexpected loadManifest[\\s\\S]*?\\);",
             "g"
           );
-          code = code.replace(loadManifestRegex, "return {};");
+          code = code.replace(
+            loadManifestRegex,
+            'return (typeof path2 === "string" && path2.includes("server-reference-manifest") ? (globalThis.__SERVER_REFERENCE_MANIFEST || {}) : {});'
+          );
           modified = true;
         }
         if (code.includes("Unexpected evalManifest")) {
@@ -588,7 +711,14 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
             "throw new Error\\([\\x60\\x22\\x27]Unexpected evalManifest[\\s\\S]*?\\);",
             "g"
           );
-          code = code.replace(evalManifestRegex, "return { __RSC_MANIFEST: {} };");
+          code = code.replace(evalManifestRegex, "return { __RSC_MANIFEST: (globalThis.__RSC_MANIFEST || {}) };");
+          modified = true;
+        }
+        if (code.includes("return { __RSC_MANIFEST: {} };")) {
+          code = code.replace(
+            /return\s*\{\s*__RSC_MANIFEST\s*:\s*\{\}\s*\};/g,
+            "return { __RSC_MANIFEST: (globalThis.__RSC_MANIFEST || {}) };"
+          );
           modified = true;
         }
         if (code.includes("Unexpected findDir")) {
@@ -614,9 +744,9 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
           );
           code = code.replace(
             /throw new [^;]*?InvariantError\(['"]The manifests singleton was not initialized\.['"]\);/g,
-            "return (typeof globalThisWithManifests !== 'undefined' && typeof MANIFESTS_SINGLETON !== 'undefined' ? (globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests()) : globalThis._initNextManifests());"
+            "return (typeof globalThisWithManifests !== 'undefined' && typeof MANIFESTS_SINGLETON !== 'undefined' ? (globalThisWithManifests[MANIFESTS_SINGLETON] || (globalThisWithManifests[MANIFESTS_SINGLETON] = globalThis._initNextManifests())) : globalThis._initNextManifests());"
           );
-          if (!code.includes("globalThis._initNextManifests")) {
+          if (!code.includes("__EMBEDDED_RSC_MANIFEST") && !code.includes("globalThis._initNextManifests")) {
             code = singletonHelperCode + "\n" + code;
           }
           modified = true;

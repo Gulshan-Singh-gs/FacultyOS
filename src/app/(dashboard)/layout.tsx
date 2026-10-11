@@ -14,7 +14,21 @@ export default async function DashboardLayout({
   console.log("[FACULTYOS_TRACE] DashboardLayout: profile ready", profile?.id);
 
   return (
-    <AppShell user={user} profile={profile}>
+    <AppShell
+      user={{
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        image: user.image ?? null,
+      }}
+      profile={{
+        id: profile.id,
+        displayName: profile.displayName,
+        plan: profile.plan,
+        institution: profile.institution ?? null,
+        facultyTitle: profile.facultyTitle ?? null,
+      }}
+    >
       {children}
     </AppShell>
   );
