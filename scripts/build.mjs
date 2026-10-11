@@ -761,6 +761,16 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
             modified = true;
           }
         }
+        if (code.includes('J("location",')) {
+          const original = code;
+          code = code.replace(
+            /J\("location",\s*(\w+)\)/g,
+            'J("location",$1),t.flushHeaders&&t.flushHeaders(),t.end&&t.end()'
+          );
+          if (code !== original) {
+            modified = true;
+          }
+        }
         if (modified) {
           fs.writeFileSync(fullPath, code, "utf-8");
           console.log(`✓ Post-patched ${path.relative(process.cwd(), fullPath)} for loadManifest resilience / redirect flush`);
@@ -781,9 +791,18 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
     const fullRf = path.join(process.cwd(), rf);
     if (fs.existsSync(fullRf)) {
       let content = fs.readFileSync(fullRf, "utf-8");
-      const regex = /e\.setHeader\("location",\s*(\w+)\),\s*(\w+)\("location"\)/g;
-      if (regex.test(content)) {
-        content = content.replace(regex, 'e.setHeader("location",$1),$2("location"),e.flushHeaders&&e.flushHeaders(),e.end&&e.end()');
+      let changed = false;
+      const staticRegex = /e\.setHeader\("location",\s*(\w+)\),\s*(\w+)\("location"\)/g;
+      if (staticRegex.test(content)) {
+        content = content.replace(staticRegex, 'e.setHeader("location",$1),$2("location"),e.flushHeaders&&e.flushHeaders(),e.end&&e.end()');
+        changed = true;
+      }
+      const dynRegex = /J\("location",\s*(\w+)\)/g;
+      if (dynRegex.test(content)) {
+        content = content.replace(dynRegex, 'J("location",$1),t.flushHeaders&&t.flushHeaders(),t.end&&t.end()');
+        changed = true;
+      }
+      if (changed) {
         fs.writeFileSync(fullRf, content, "utf-8");
         console.log(`✓ Patched ${path.basename(fullRf)} for clean RSC redirect completion`);
       }

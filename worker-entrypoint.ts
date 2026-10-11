@@ -13,10 +13,23 @@ const PROTECTED_PREFIXES = [
   "/settings",
 ];
 
+function extractSessionToken(cookieHeader: string): string | null {
+  if (!cookieHeader) return null;
+  const match =
+    cookieHeader.match(/(?:facultyos|better-auth)\.session_token=([^;]+)/i) ||
+    cookieHeader.match(/session_token=([^;]+)/i);
+  if (!match || !match[1]) return null;
+  let raw = decodeURIComponent(match[1].trim());
+  if (raw.includes(".")) {
+    raw = raw.split(".")[0];
+  }
+  return raw;
+}
+
 export default {
   async fetch(request: Request, env: any, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
-    console.log("[FACULTYOS_ENTRY] fetch:", request.method, url.pathname);
+    const cookie = request.headers.get("cookie") || "";
     (globalThis as any).__CF_ENV__ = env;
     (globalThis as any).__CF_CTX__ = ctx;
     if (env) {
@@ -24,18 +37,37 @@ export default {
       (globalThis as any).NOTIFICATIONS = env.NOTIFICATIONS || env.notifications;
     }
 
-    // Fast-path: protect dashboard routes when no session cookie exists.
-    // This responds in <15ms at the edge without invoking the Next.js RSC pipeline,
-    // avoiding unnecessary SSR overhead and eliminating Worker hang conditions.
+    // Fast-path: protect dashboard routes.
+    // If no session exists or session token is invalid/expired in D1, redirect to /login immediately.
+    // This responds in <20ms at the edge without invoking the Next.js RSC pipeline.
     const isProtected = PROTECTED_PREFIXES.some(
       (prefix) => url.pathname === prefix || url.pathname.startsWith(prefix + "/")
     );
-    const cookie = request.headers.get("cookie") || "";
-    const hasSessionCookie = cookie.includes("session_token");
 
-    if (isProtected && !hasSessionCookie) {
-      console.log("[FACULTYOS_ENTRY] fast redirect unauthenticated to /login for:", url.pathname);
-      return Response.redirect(new URL("/login", request.url).href, 307);
+    if (isProtected) {
+      const token = extractSessionToken(cookie);
+      if (!token) {
+        console.log("[FACULTYOS_ENTRY] fast redirect unauthenticated (no token) to /login for:", url.pathname);
+        return Response.redirect(new URL("/login", request.url).href, 307);
+      }
+
+      const d1 = env?.DB || env?.facultyos;
+      if (d1 && typeof d1.prepare === "function") {
+        try {
+          const now = Date.now();
+          const sessionRow = await d1
+            .prepare("SELECT user_id FROM session WHERE token = ? AND expires_at > ? LIMIT 1")
+            .bind(token, now)
+            .first();
+
+          if (!sessionRow) {
+            console.log("[FACULTYOS_ENTRY] fast redirect unauthenticated (invalid/expired session in D1) to /login for:", url.pathname);
+            return Response.redirect(new URL("/login", request.url).href, 307);
+          }
+        } catch (dbErr) {
+          console.warn("[FACULTYOS_ENTRY] edge session check error, proceeding to app:", dbErr);
+        }
+      }
     }
 
     try {
