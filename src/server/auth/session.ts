@@ -100,22 +100,28 @@ export async function getOrCreateProfile(
  * Redirects to /login if unauthenticated.
  */
 export const requireProfile = cache(async (): Promise<AuthenticatedContext> => {
+  console.log("[FACULTYOS_TRACE] requireProfile: start");
   const reqHeaders = await headers();
   const cookieHeader = reqHeaders.get("cookie") || "";
+  console.log("[FACULTYOS_TRACE] requireProfile: cookieHeader present?", Boolean(cookieHeader));
 
-  // Fast path: if no session cookie exists, redirect immediately without touching Better Auth or D1
   if (!cookieHeader.includes("session_token")) {
+    console.log("[FACULTYOS_TRACE] requireProfile: no session_token, redirecting to /login");
     redirect("/login");
   }
 
   let session = null;
   try {
+    console.log("[FACULTYOS_TRACE] requireProfile: getting auth instance...");
     const auth = await getAuth();
+    console.log("[FACULTYOS_TRACE] requireProfile: got auth, querying getSession...");
     session = await Promise.race([
       auth.api.getSession({ headers: reqHeaders }),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
     ]);
+    console.log("[FACULTYOS_TRACE] requireProfile: getSession resolved, user:", session?.user?.email || null);
   } catch (err: unknown) {
+    console.log("[FACULTYOS_TRACE] requireProfile: getSession exception:", err);
     if (
       err &&
       typeof err === "object" &&
@@ -130,14 +136,17 @@ export const requireProfile = cache(async (): Promise<AuthenticatedContext> => {
   }
 
   if (!session?.user) {
+    console.log("[FACULTYOS_TRACE] requireProfile: no session.user, redirecting to /login");
     redirect("/login");
   }
 
+  console.log("[FACULTYOS_TRACE] requireProfile: loading profile for user", session.user.id);
   const profile = await getOrCreateProfile(
     session.user.id,
     session.user.email,
     session.user.name,
   );
+  console.log("[FACULTYOS_TRACE] requireProfile: profile ready", profile.id);
 
   return {
     user: session.user,

@@ -9,16 +9,21 @@ import { courses, requests } from "@/server/db/schema";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  console.log("[FACULTYOS_TRACE] DashboardPage: start");
   const { profile } = await requireProfile();
+  console.log("[FACULTYOS_TRACE] DashboardPage: requireProfile done, getting env");
   const env = await getServerEnv();
+  console.log("[FACULTYOS_TRACE] DashboardPage: got env, creating db");
   const db = createDb(env.DB);
 
   // 1. Fetch active courses for current professor
+  console.log("[FACULTYOS_TRACE] DashboardPage: querying courses...");
   const profileCourses = await db
     .select()
     .from(courses)
     .where(and(eq(courses.profileId, profile.id), eq(courses.status, "active")))
     .orderBy(courses.createdAt);
+  console.log("[FACULTYOS_TRACE] DashboardPage: courses queried, count:", profileCourses.length);
 
   const courseIds = profileCourses.map((c) => c.id);
 

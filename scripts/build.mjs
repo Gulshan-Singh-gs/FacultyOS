@@ -717,14 +717,78 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
           code = code.replace(/this\.enabledDirectories\.pages/g, 'false');
           modified = true;
         }
+        if (code.includes('NULL_BODY_STATUSES2') || code.includes('NULL_BODY_STATUSES')) {
+          code = code.replace(
+            /NULL_BODY_STATUSES2\.has\(statusCode\)/g,
+            '(NULL_BODY_STATUSES2.has(statusCode) || (statusCode >= 300 && statusCode < 400) || (typeof responseHeaders !== "undefined" && responseHeaders.has("location")))'
+          );
+          code = code.replace(
+            /NULL_BODY_STATUSES2\s*=\s*new Set\(\[101,\s*204,\s*205,\s*304\]\)/g,
+            'NULL_BODY_STATUSES2 = new Set([101, 204, 205, 301, 302, 303, 304, 307, 308])'
+          );
+          code = code.replace(
+            /NULL_BODY_STATUSES2=new Set\(\[101,204,205,304\]\)/g,
+            'NULL_BODY_STATUSES2=new Set([101,204,205,301,302,303,304,307,308])'
+          );
+          code = code.replace(
+            /NULL_BODY_STATUSES\.has\(result\.statusCode\)/g,
+            '(NULL_BODY_STATUSES.has(result.statusCode) || (result.statusCode >= 300 && result.statusCode < 400))'
+          );
+          code = code.replace(
+            /NULL_BODY_STATUSES\s*=\s*new Set\(\[101,\s*103,\s*204,\s*205,\s*304\]\)/g,
+            'NULL_BODY_STATUSES = new Set([101, 103, 204, 205, 301, 302, 303, 304, 307, 308])'
+          );
+          code = code.replace(
+            /NULL_BODY_STATUSES=new Set\(\[101,103,204,205,304\]\)/g,
+            'NULL_BODY_STATUSES=new Set([101,103,204,205,301,302,303,304,307,308])'
+          );
+          modified = true;
+        }
+        if (code.includes('redirect(destination,statusCode){')) {
+          code = code.replace(
+            /redirect\(destination,statusCode\)\s*\{return this\.setHeader\("Location",destination\),this\.statusCode=statusCode,statusCode===308&&this\.setHeader\("Refresh",`0;url=\${destination}`\),this\}/g,
+            'redirect(destination,statusCode){ this.setHeader("Location",destination); this.statusCode=statusCode; if(statusCode===308) this.setHeader("Refresh",`0;url=${destination}`); try { this.flushHeaders(); } catch(e){} return this; }'
+          );
+          modified = true;
+        }
+        if (code.includes('setHeader("location",')) {
+          const original = code;
+          code = code.replace(
+            /e\.setHeader\("location",\s*(\w+)\),\s*(\w+)\("location"\)/g,
+            'e.setHeader("location",$1),$2("location"),e.flushHeaders&&e.flushHeaders(),e.end&&e.end()'
+          );
+          if (code !== original) {
+            modified = true;
+          }
+        }
         if (modified) {
           fs.writeFileSync(fullPath, code, "utf-8");
-          console.log(`✓ Post-patched ${path.relative(process.cwd(), fullPath)} for loadManifest resilience`);
+          console.log(`✓ Post-patched ${path.relative(process.cwd(), fullPath)} for loadManifest resilience / redirect flush`);
         }
       }
     }
   }
   patchFilesRecursively(openNextDir);
+
+  // 4. Ensure all compiled Next.js App Router runtimes flush headers and close stream on redirects
+  const runtimeFiles = [
+    "node_modules/.pnpm/next@16.4.0_@babel+core@7.2_775e0d7ab00b10f2950287173e7bc793/node_modules/next/dist/compiled/next-server/app-page-turbo.runtime.prod.js",
+    "node_modules/.pnpm/next@16.4.0_@babel+core@7.2_775e0d7ab00b10f2950287173e7bc793/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js",
+    "node_modules/.pnpm/next@16.4.0_@babel+core@7.2_775e0d7ab00b10f2950287173e7bc793/node_modules/next/dist/compiled/next-server/app-page-turbo-experimental.runtime.prod.js",
+    "node_modules/.pnpm/next@16.4.0_@babel+core@7.2_775e0d7ab00b10f2950287173e7bc793/node_modules/next/dist/compiled/next-server/app-page-experimental.runtime.prod.js",
+  ];
+  for (const rf of runtimeFiles) {
+    const fullRf = path.join(process.cwd(), rf);
+    if (fs.existsSync(fullRf)) {
+      let content = fs.readFileSync(fullRf, "utf-8");
+      const regex = /e\.setHeader\("location",\s*(\w+)\),\s*(\w+)\("location"\)/g;
+      if (regex.test(content)) {
+        content = content.replace(regex, 'e.setHeader("location",$1),$2("location"),e.flushHeaders&&e.flushHeaders(),e.end&&e.end()');
+        fs.writeFileSync(fullRf, content, "utf-8");
+        console.log(`✓ Patched ${path.basename(fullRf)} for clean RSC redirect completion`);
+      }
+    }
+  }
 } catch (err) {
   if (isWindows && !process.env.CF_PAGES) {
     console.warn("⚠️ OpenNext encountered Windows local symlink limitation. Running standard next build for local validation.");
