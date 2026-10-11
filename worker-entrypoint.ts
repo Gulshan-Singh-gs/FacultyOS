@@ -7,6 +7,10 @@ export default {
   async fetch(request: Request, env: any, ctx: ExecutionContext): Promise<Response> {
     (globalThis as any).__CF_ENV__ = env;
     (globalThis as any).__CF_CTX__ = ctx;
+    if (env) {
+      (globalThis as any).DB = env.DB || env.facultyos;
+      (globalThis as any).NOTIFICATIONS = env.NOTIFICATIONS || env.notifications;
+    }
     try {
       if (handler && typeof (handler as any).fetch === "function") {
         return await (handler as any).fetch(request, env, ctx);

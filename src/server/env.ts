@@ -40,8 +40,14 @@ export async function getServerEnv(): Promise<FacultyOSEnv> {
   if (!envObj.DB && envObj.facultyos) {
     envObj.DB = envObj.facultyos;
   }
+  if (!envObj.facultyos && envObj.DB) {
+    envObj.facultyos = envObj.DB;
+  }
   if (!envObj.NOTIFICATIONS && envObj.notifications) {
     envObj.NOTIFICATIONS = envObj.notifications;
+  }
+  if (!envObj.notifications && envObj.NOTIFICATIONS) {
+    envObj.notifications = envObj.NOTIFICATIONS;
   }
 
   if (!envObj.BETTER_AUTH_SECRET) {

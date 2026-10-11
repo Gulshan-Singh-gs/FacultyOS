@@ -444,6 +444,10 @@ try {
         `try {
           globalThis.__CF_ENV__ = env;
           globalThis.__CF_CTX__ = ctx;
+          if (env) {
+            globalThis.DB = env.DB || env.facultyos;
+            globalThis.NOTIFICATIONS = env.NOTIFICATIONS || env.notifications;
+          }
           return await runWithCloudflareRequestContext(request, env, ctx, async () => {`
       );
       const lastFetchBrace = workerCode.lastIndexOf("    },\n};");

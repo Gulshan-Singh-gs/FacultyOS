@@ -3,8 +3,7 @@ import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getAuth } from "@/server/auth";
-import { createDb } from "@/server/db";
-import { getServerEnv } from "@/server/env";
+import { getDb } from "@/server/db";
 import {
   professorProfiles,
   boundaries,
@@ -35,8 +34,7 @@ export async function getOrCreateProfile(
   userEmail: string,
   userName?: string | null,
 ): Promise<typeof professorProfiles.$inferSelect> {
-  const env = await getServerEnv();
-  const db = createDb(env.DB);
+  const db = await getDb();
 
   const [existing] = await db
     .select()

@@ -68,12 +68,17 @@ export function createAuth(db: Db, secret: string, baseURL?: string) {
 
 export async function getAuth() {
   const env = await getServerEnv();
-  if (!env.DB) {
+  const d1 =
+    env.DB ||
+    (env as any).facultyos ||
+    (globalThis as any).__CF_ENV__?.DB ||
+    (globalThis as any).DB;
+  if (!d1) {
     throw new Error(
       "Missing D1 Database binding 'DB'. In Cloudflare Dashboard, go to Workers & Pages -> facultyos -> Settings -> Variables and Bindings -> Add D1 Database binding with Variable name 'DB'."
     );
   }
-  const db = createDb(env.DB);
+  const db = createDb(d1);
 
   // Resolve secret: prefer the Cloudflare Workers secret binding, then process.env (local dev only)
   const secret =
