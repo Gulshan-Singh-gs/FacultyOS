@@ -556,6 +556,7 @@ try {
           if (env) {
             globalThis.DB = env.DB || env.facultyos;
             globalThis.NOTIFICATIONS = env.NOTIFICATIONS || env.notifications;
+            globalThis.RATE_LIMIT = env.RATE_LIMIT || env.rate_limit;
           }
           return await runWithCloudflareRequestContext(request, env, ctx, async () => {`
       );

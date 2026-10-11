@@ -35,6 +35,7 @@ export default {
     if (env) {
       (globalThis as any).DB = env.DB || env.facultyos;
       (globalThis as any).NOTIFICATIONS = env.NOTIFICATIONS || env.notifications;
+      (globalThis as any).RATE_LIMIT = env.RATE_LIMIT || env.rate_limit;
     }
 
     // Fast-path: protect dashboard routes.

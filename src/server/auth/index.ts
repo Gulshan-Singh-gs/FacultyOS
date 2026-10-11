@@ -1,40 +1,44 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import * as schema from "@/server/db/schema";
-import { createDb, type Db } from "@/server/db";
+import { createDb, type Db, getDb } from "@/server/db";
 import { getServerEnv } from "@/server/env";
 
-export function createAuth(db: Db, secret: string, baseURL?: string) {
+export function createAuth(
+  db: Db,
+  secret?: string,
+  baseURL?: string,
+  trustedOrigins?: string[]
+) {
+  const resolvedSecret =
+    secret ||
+    process.env.BETTER_AUTH_SECRET ||
+    "facultyos-dev-secret-do-not-use-in-production";
+
+  const resolvedBaseURL =
+    baseURL ||
+    process.env.BETTER_AUTH_URL ||
+    "https://facultyos.gs-softwares.workers.dev";
+
+  const rawTrusted = process.env.BETTER_AUTH_TRUSTED_ORIGINS || "";
+  const resolvedTrustedOrigins =
+    trustedOrigins ||
+    (rawTrusted
+      ? rawTrusted
+          .split(",")
+          .map((url) => url.trim().replace(/\/$/, ""))
+          .filter(Boolean)
+      : [
+          "https://facultyos.gs-softwares.workers.dev",
+          "https://facultyos.com",
+          "http://localhost:3000",
+          "http://127.0.0.1:3000",
+        ]);
+
   return betterAuth({
-    secret,
-    baseURL:
-      baseURL ||
-      (process.env.NODE_ENV === "production"
-        ? "https://facultyos.gs-softwares.workers.dev"
-        : "http://localhost:3000"),
-    trustedOrigins: (request?: Request) => {
-      const allowed = [
-        "https://facultyos.gs-softwares.workers.dev",
-        "https://*.workers.dev",
-        "https://facultyos.com",
-        "https://*.facultyos.com",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-      ];
-      if (process.env.BETTER_AUTH_TRUSTED_ORIGINS) {
-        allowed.push(...process.env.BETTER_AUTH_TRUSTED_ORIGINS.split(",").map((s) => s.trim()));
-      }
-      if (request) {
-        const origin = request.headers.get("origin");
-        if (origin) allowed.push(origin);
-        const host = request.headers.get("host");
-        if (host) {
-          allowed.push(`https://${host}`);
-          allowed.push(`http://${host}`);
-        }
-      }
-      return allowed;
-    },
+    secret: resolvedSecret,
+    baseURL: resolvedBaseURL,
+    trustedOrigins: resolvedTrustedOrigins,
     database: drizzleAdapter(db, {
       provider: "sqlite",
       schema: {
@@ -73,22 +77,10 @@ export async function getAuth() {
     return cachedAuth;
   }
   const env = await getServerEnv();
-  const d1 =
-    env.DB ||
-    (env as any).facultyos ||
-    (globalThis as any).__CF_ENV__?.DB ||
-    (globalThis as any).DB;
-  if (!d1) {
-    throw new Error(
-      "Missing D1 Database binding 'DB'. In Cloudflare Dashboard, go to Workers & Pages -> facultyos -> Settings -> Variables and Bindings -> Add D1 Database binding with Variable name 'DB'."
-    );
-  }
-  const db = createDb(d1);
+  const db = await getDb();
 
-  // Resolve secret: prefer the Cloudflare Workers secret binding, then process.env (local dev only)
-  const secret =
-    env.BETTER_AUTH_SECRET ||
-    (process.env as any).BETTER_AUTH_SECRET;
+  // Resolve secret: prefer process.env.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET
+  const secret = process.env.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET;
 
   if (!secret) {
     if (process.env.NODE_ENV === "production") {
@@ -102,7 +94,26 @@ export async function getAuth() {
   }
 
   const resolvedSecret = secret || "facultyos-dev-secret-do-not-use-in-production";
-  const baseURL = (env as any).BETTER_AUTH_URL || undefined;
-  cachedAuth = createAuth(db, resolvedSecret, baseURL);
+  const baseURL =
+    process.env.BETTER_AUTH_URL ||
+    env.BETTER_AUTH_URL ||
+    "https://facultyos.gs-softwares.workers.dev";
+
+  const rawTrusted =
+    process.env.BETTER_AUTH_TRUSTED_ORIGINS ||
+    (Array.isArray(env.BETTER_AUTH_TRUSTED_ORIGINS)
+      ? env.BETTER_AUTH_TRUSTED_ORIGINS.join(",")
+      : env.BETTER_AUTH_TRUSTED_ORIGINS) ||
+    "";
+
+  const trustedOrigins = (
+    rawTrusted ||
+    "https://facultyos.gs-softwares.workers.dev,https://facultyos.com,http://localhost:3000,http://127.0.0.1:3000"
+  )
+    .split(",")
+    .map((url) => url.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+
+  cachedAuth = createAuth(db, resolvedSecret, baseURL, trustedOrigins);
   return cachedAuth;
 }
