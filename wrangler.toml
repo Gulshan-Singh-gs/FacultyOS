@@ -2,6 +2,7 @@ name = "facultyos"
 main = "worker-entrypoint.ts"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
+account_id = "a078ac1bbabd17238a4355ab21221a8c"
 
 [assets]
 directory = ".open-next/assets"
