@@ -17,12 +17,6 @@ NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY = "pri_01m4mwgb41h1bqc8p81cg0ee4g"
 NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER = "pri_01m4mwpvt6wevqx3dty501tdcx"
 NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY = "pri_01m4mwvdhcv3hyrymyxazr1rwt"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "facultyos"
-database_id = "ca602aea-9aa7-4dec-acbe-b13d7ca2e99b"
-migrations_dir = "drizzle"
-
 
 [[queues.producers]]
 binding = "NOTIFICATIONS"
