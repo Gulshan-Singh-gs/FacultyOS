@@ -66,7 +66,12 @@ export function createAuth(db: Db, secret: string, baseURL?: string) {
   });
 }
 
+let cachedAuth: ReturnType<typeof createAuth> | null = null;
+
 export async function getAuth() {
+  if (cachedAuth) {
+    return cachedAuth;
+  }
   const env = await getServerEnv();
   const d1 =
     env.DB ||
@@ -98,5 +103,6 @@ export async function getAuth() {
 
   const resolvedSecret = secret || "facultyos-dev-secret-do-not-use-in-production";
   const baseURL = (env as any).BETTER_AUTH_URL || undefined;
-  return createAuth(db, resolvedSecret, baseURL);
+  cachedAuth = createAuth(db, resolvedSecret, baseURL);
+  return cachedAuth;
 }

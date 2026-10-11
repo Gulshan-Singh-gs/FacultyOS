@@ -48,4 +48,20 @@ describe("Better Auth Server Configuration", () => {
       expect(origins).toContain("http://localhost:3000");
     }
   });
+
+  it("returns null session gracefully when no cookie header is present", async () => {
+    const fakeD1 = {
+      prepare: () => ({
+        bind: () => ({
+          all: async () => ({ results: [] }),
+        }),
+      }),
+    } as any;
+
+    const db = drizzle(fakeD1, { schema });
+    const auth = createAuth(db, "test-auth-secret-key-that-is-at-least-32-chars");
+
+    const session = await auth.api.getSession({ headers: new Headers() });
+    expect(session).toBeNull();
+  });
 });

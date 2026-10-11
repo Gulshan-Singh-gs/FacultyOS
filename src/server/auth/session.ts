@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
@@ -98,17 +99,33 @@ export async function getOrCreateProfile(
  * Server-side helper that requires an active session and provisioned profile.
  * Redirects to /login if unauthenticated.
  */
-export async function requireProfile(): Promise<AuthenticatedContext> {
+export const requireProfile = cache(async (): Promise<AuthenticatedContext> => {
   const reqHeaders = await headers();
+  const cookieHeader = reqHeaders.get("cookie") || "";
+
+  // Fast path: if no session cookie exists, redirect immediately without touching Better Auth or D1
+  if (!cookieHeader.includes("session_token")) {
+    redirect("/login");
+  }
+
   let session = null;
   try {
     const auth = await getAuth();
-    session = await auth.api.getSession({ headers: reqHeaders });
-  } catch (err: any) {
-    if (err?.digest?.startsWith?.("NEXT_REDIRECT")) {
+    session = await Promise.race([
+      auth.api.getSession({ headers: reqHeaders }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+    ]);
+  } catch (err: unknown) {
+    if (
+      err &&
+      typeof err === "object" &&
+      "digest" in err &&
+      typeof (err as { digest: unknown }).digest === "string" &&
+      (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+    ) {
       throw err;
     }
-    console.warn("[FacultyOS requireProfile] getSession threw error, redirecting to login:", err);
+    console.warn("[FacultyOS requireProfile] getSession error, redirecting to login:", err);
     redirect("/login");
   }
 
@@ -127,16 +144,24 @@ export async function requireProfile(): Promise<AuthenticatedContext> {
     session: session.session,
     profile,
   };
-}
+});
 
 /**
  * Returns the authenticated profile and user, or null if not logged in.
  */
-export async function getCurrentProfile(): Promise<AuthenticatedContext | null> {
+export const getCurrentProfile = cache(async (): Promise<AuthenticatedContext | null> => {
   try {
     const reqHeaders = await headers();
+    const cookieHeader = reqHeaders.get("cookie") || "";
+    if (!cookieHeader.includes("session_token")) {
+      return null;
+    }
+
     const auth = await getAuth();
-    const session = await auth.api.getSession({ headers: reqHeaders });
+    const session = await Promise.race([
+      auth.api.getSession({ headers: reqHeaders }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+    ]);
 
     if (!session?.user) {
       return null;
@@ -156,4 +181,4 @@ export async function getCurrentProfile(): Promise<AuthenticatedContext | null> 
   } catch {
     return null;
   }
-}
+});
