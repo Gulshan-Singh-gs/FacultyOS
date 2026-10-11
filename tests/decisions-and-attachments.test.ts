@@ -118,7 +118,7 @@ function createMockDb(fixtures: {
     })),
     insert: vi.fn().mockImplementation(() => ({
       values: vi.fn().mockImplementation((vals: any) => {
-        if (vals.r2Key !== undefined) {
+        if (vals.fileName !== undefined) {
           attachmentsStore.push(vals);
         } else {
           eventsStore.push(vals);

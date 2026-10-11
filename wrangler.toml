@@ -16,7 +16,15 @@ NEXT_PUBLIC_PADDLE_CLIENT_TOKEN = "live_e6cf5d84a9bebe17a33235fdc42"
 NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY = "pri_01m4mwgb41h1bqc8p81cg0ee4g"
 NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER = "pri_01m4mwpvt6wevqx3dty501tdcx"
 NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY = "pri_01m4mwvdhcv3hyrymyxazr1rwt"
+[[d1_databases]]
+binding = "DB"
+database_name = "facultyos"
+database_id = "de9668a3-b0ec-4f33-ab75-bc5e17c42224"
+migrations_dir = "drizzle"
 
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "7a745a7585864c72b0bf23095c08f5e4"
 
 [[queues.producers]]
 binding = "NOTIFICATIONS"
