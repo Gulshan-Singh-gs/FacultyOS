@@ -5,10 +5,21 @@ import { handleCron } from "./src/workers/cron";
 
 export default {
   async fetch(request: Request, env: any, ctx: ExecutionContext): Promise<Response> {
-    if (handler && typeof (handler as any).fetch === "function") {
-      return (handler as any).fetch(request, env, ctx);
+    try {
+      if (handler && typeof (handler as any).fetch === "function") {
+        return await (handler as any).fetch(request, env, ctx);
+      }
+      return new Response("FacultyOS Worker Initializing", { status: 503 });
+    } catch (err: any) {
+      console.error("[FacultyOS Worker Entrypoint Exception]", err);
+      return new Response(
+        `FacultyOS Server Error:\n${err?.stack || err?.message || String(err)}\n\nURL: ${request.url}`,
+        {
+          status: 500,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        },
+      );
     }
-    return new Response("FacultyOS Worker Initializing", { status: 503 });
   },
 
   async queue(

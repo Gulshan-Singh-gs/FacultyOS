@@ -102,8 +102,14 @@ export async function getOrCreateProfile(
  */
 export async function requireProfile(): Promise<AuthenticatedContext> {
   const reqHeaders = await headers();
-  const auth = await getAuth();
-  const session = await auth.api.getSession({ headers: reqHeaders });
+  let session = null;
+  try {
+    const auth = await getAuth();
+    session = await auth.api.getSession({ headers: reqHeaders });
+  } catch (err) {
+    console.warn("[FacultyOS requireProfile] getSession threw error, redirecting to login:", err);
+    redirect("/login");
+  }
 
   if (!session?.user) {
     redirect("/login");
