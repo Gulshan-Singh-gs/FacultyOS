@@ -198,18 +198,27 @@ export async function POST(
     }),
   });
 
-  /* 7. Push notification to queue without blocking HTTP response */
-  try {
-    if (env.NOTIFICATIONS?.send) {
-      await env.NOTIFICATIONS.send({
-        type: "request_created",
-        requestId,
-        courseId: course.id,
-      });
+  /* 7. Push notification to queue with ExecutionContext.waitUntil resiliency */
+  const queuePromise = (async () => {
+    try {
+      if (env.NOTIFICATIONS?.send) {
+        await env.NOTIFICATIONS.send({
+          type: "request_created",
+          requestId,
+          courseId: course.id,
+        });
+      }
+    } catch (err) {
+      // Graceful queue deferral
+      console.warn("Queue push notification deferred:", err);
     }
-  } catch (err) {
-    // Graceful queue deferral
-    console.warn("Queue push notification deferred:", err);
+  })();
+
+  const cfCtx = (globalThis as any).__CF_CTX__;
+  if (cfCtx?.waitUntil && typeof cfCtx.waitUntil === "function") {
+    cfCtx.waitUntil(queuePromise);
+  } else {
+    await queuePromise;
   }
 
   return NextResponse.json(

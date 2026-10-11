@@ -40,32 +40,33 @@ const NAV_ITEMS = [
   {
     name: "Dashboard",
     href: "/dashboard",
-    icon: <LayoutDashboard className="w-5 h-5" strokeWidth={1.75} />,
+    icon: LayoutDashboard,
   },
   {
     name: "Courses",
     href: "/courses",
-    icon: <BookOpen className="w-5 h-5" strokeWidth={1.75} />,
+    icon: BookOpen,
   },
   {
     name: "Inbox",
     href: "/inbox",
-    icon: <InboxIcon className="w-5 h-5" strokeWidth={1.75} />,
+    icon: InboxIcon,
   },
   {
     name: "Boundaries",
     href: "/boundaries",
-    icon: <Clock className="w-5 h-5" strokeWidth={1.75} />,
+    icon: Clock,
   },
   {
     name: "Career Ledger",
     href: "/ledger",
-    icon: <ScrollText className="w-5 h-5" strokeWidth={1.75} />,
+    icon: ScrollText,
   },
 ];
 
 export function AppShell({ children, user, profile }: AppShellProps) {
-  const pathname = usePathname();
+  const rawPathname = usePathname();
+  const pathname = rawPathname || "";
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -94,7 +95,7 @@ export function AppShell({ children, user, profile }: AppShellProps) {
                 FacultyOS
               </div>
               <div className="text-xs text-[var(--text-secondary)]">
-                {profile.facultyTitle || "Professor"}
+                {profile?.facultyTitle || "Professor"}
               </div>
             </div>
           </div>
@@ -105,7 +106,8 @@ export function AppShell({ children, user, profile }: AppShellProps) {
               const isActive =
                 item.href === "/dashboard"
                   ? pathname === "/dashboard"
-                  : pathname.startsWith(item.href);
+                  : Boolean(pathname && pathname.startsWith(item.href));
+              const IconComp = item.icon;
 
               return (
                 <Link
@@ -119,7 +121,7 @@ export function AppShell({ children, user, profile }: AppShellProps) {
                   }`}
                 >
                   <span className={isActive ? "text-[var(--brand)]" : "text-[var(--text-muted)]"}>
-                    {item.icon}
+                    <IconComp className="w-5 h-5" strokeWidth={1.75} />
                   </span>
                   {item.name}
                 </Link>
@@ -133,14 +135,14 @@ export function AppShell({ children, user, profile }: AppShellProps) {
           <div className="px-3 py-2 rounded-xl bg-[var(--bg-input)] flex items-center justify-between">
             <div className="truncate">
               <div className="text-xs font-medium text-[var(--text-primary)] truncate">
-                {profile.displayName}
+                {profile?.displayName || "Professor"}
               </div>
               <div className="text-[11px] text-[var(--text-secondary)] truncate">
-                {user.email}
+                {user?.email || ""}
               </div>
             </div>
             <span className="glass-badge capitalize">
-              {profile.plan}
+              {profile?.plan || "free"}
             </span>
           </div>
 
@@ -171,7 +173,7 @@ export function AppShell({ children, user, profile }: AppShellProps) {
             <span className="text-sm font-semibold text-[var(--text-primary)] capitalize">
               {pathname === "/dashboard"
                 ? "Overview"
-                : pathname.split("/")[1] || "Dashboard"}
+                : pathname ? pathname.split("/")[1] || "Dashboard" : "Dashboard"}
             </span>
           </div>
 
@@ -205,17 +207,20 @@ export function AppShell({ children, user, profile }: AppShellProps) {
                 </button>
               </div>
               <nav className="space-y-1">
-                {NAV_ITEMS.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm"
-                  >
-                    {item.icon}
-                    {item.name}
-                  </Link>
-                ))}
+                {NAV_ITEMS.map((item) => {
+                  const IconComp = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm"
+                    >
+                      <IconComp className="w-5 h-5" strokeWidth={1.75} />
+                      {item.name}
+                    </Link>
+                  );
+                })}
               </nav>
             </div>
           </div>

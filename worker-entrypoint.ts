@@ -93,9 +93,10 @@ export default {
   async queue(
     batch: MessageBatch<QueueMessageBody>,
     env: QueueConsumerEnv,
-    _ctx: ExecutionContext,
+    ctx: ExecutionContext,
   ): Promise<void> {
     (globalThis as any).__CF_ENV__ = env;
+    (globalThis as any).__CF_CTX__ = ctx;
     return handleQueue(batch, env);
   },
 
