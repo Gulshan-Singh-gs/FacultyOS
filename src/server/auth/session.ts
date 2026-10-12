@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getAuth } from "@/server/auth";
 import { getDb, withTransaction } from "@/server/db";
@@ -9,6 +9,8 @@ import {
   professorProfiles,
   boundaries,
   usageMetrics,
+  user as userTable,
+  session as sessionTable,
 } from "@/server/db/schema";
 
 export interface AuthenticatedContext {
@@ -108,6 +110,50 @@ export async function getOrCreateProfile(
   });
 }
 
+async function resolveDirectSessionFromD1(cookieHeader: string) {
+  try {
+    const match =
+      cookieHeader.match(/(?:facultyos|better-auth)\.session_token=([^;]+)/i) ||
+      cookieHeader.match(/session_token=([^;]+)/i);
+    if (!match?.[1]) return null;
+
+    let rawToken = decodeURIComponent(match[1].trim());
+    if (rawToken.includes(".")) rawToken = rawToken.split(".")[0];
+
+    const db = await getDb();
+    const now = new Date();
+    const [activeSession] = await db
+      .select()
+      .from(sessionTable)
+      .where(
+        and(
+          eq(sessionTable.token, rawToken),
+          gt(sessionTable.expiresAt, now),
+        ),
+      )
+      .limit(1);
+
+    if (!activeSession) return null;
+
+    const [dbUser] = await db
+      .select()
+      .from(userTable)
+      .where(eq(userTable.id, activeSession.userId))
+      .limit(1);
+
+    if (!dbUser) return null;
+
+    console.log("[FACULTYOS_TRACE] direct D1 session verification success for:", dbUser.email);
+    return {
+      user: dbUser,
+      session: activeSession,
+    };
+  } catch (err) {
+    console.warn("[FACULTYOS_TRACE] resolveDirectSessionFromD1 error:", err);
+    return null;
+  }
+}
+
 /**
  * Server-side helper that requires an active session and provisioned profile.
  * Redirects to /login if unauthenticated.
@@ -145,7 +191,11 @@ export const requireProfile = cache(async (): Promise<AuthenticatedContext> => {
       throw err;
     }
     console.warn("[FacultyOS requireProfile] getSession error, redirecting to login:", err);
-    redirect("/login");
+  }
+
+  if (!session?.user) {
+    console.log("[FACULTYOS_TRACE] requireProfile: getSession returned null, checking D1 session directly...");
+    session = await resolveDirectSessionFromD1(cookieHeader);
   }
 
   if (!session?.user) {
@@ -180,10 +230,14 @@ export const getCurrentProfile = cache(async (): Promise<AuthenticatedContext | 
     }
 
     const auth = await getAuth();
-    const session = await Promise.race([
+    let session = await Promise.race([
       auth.api.getSession({ headers: reqHeaders }),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
     ]);
+
+    if (!session?.user) {
+      session = await resolveDirectSessionFromD1(cookieHeader);
+    }
 
     if (!session?.user) {
       return null;

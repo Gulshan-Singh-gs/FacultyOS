@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { signOut } from "@/server/auth/client";
 
 import {
   LayoutDashboard,
@@ -74,6 +73,7 @@ export function AppShell({ children, user, profile }: AppShellProps) {
   const handleSignOut = async () => {
     setLoggingOut(true);
     try {
+      const { signOut } = await import("@/server/auth/client");
       await signOut();
       router.push("/login");
       router.refresh();

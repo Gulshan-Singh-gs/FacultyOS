@@ -407,43 +407,19 @@ globalThis.loadManifestFromRelativePath = loadManifestFromRelativePath;
     }
   }
 
-  // E. Pre-patch React Server DOM packages so that missing client modules never crash the request
+  // E. Pre-patch React Server DOM packages for connection closing resilience without breaking AST syntax
   const rsdPackages = [
     "node_modules/next/dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-client.edge.production.js",
     "node_modules/next/dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-client.node.production.js",
     "node_modules/next/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.edge.production.js",
     "node_modules/next/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.node.production.js",
-    "node_modules/next/dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-client.edge.production.js",
-    "node_modules/next/dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-client.node.production.js",
-    "node_modules/next/dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-client.edge.production.js",
-    "node_modules/next/dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-client.node.production.js",
-    "node_modules/next/dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.edge.production.js",
-    "node_modules/next/dist/compiled/react-server-dom-webpack/cjs/react-server-dom-webpack-server.node.production.js",
-    "node_modules/next/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.edge.production.js",
-    "node_modules/next/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-server.node.production.js",
-    "node_modules/next/dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.edge.production.js",
-    "node_modules/next/dist/compiled/react-server-dom-webpack-experimental/cjs/react-server-dom-webpack-server.node.production.js",
-    "node_modules/next/dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.edge.production.js",
-    "node_modules/next/dist/compiled/react-server-dom-turbopack-experimental/cjs/react-server-dom-turbopack-server.node.production.js"
   ];
-  const rsdConsumerRegex = /throw (?:new )?Error\([\s\S]*?in the React Server Consumer Manifest[\s\S]*?\);?/g;
-  const rsdConsumerFallback = 'bundlerConfig = { id: metadata[0], chunks: [], name: metadata[2] || "*" };';
-  const rsdServerRegex = /throw (?:new )?Error\([\s\S]*?in the React Server Manifest[\s\S]*?\);?/g;
-  const rsdServerFallback = 'resolvedModuleData = { id: id, chunks: [], name: name || "*", async: false };';
 
   for (const relPath of rsdPackages) {
     const fullP = path.resolve(relPath);
     if (fs.existsSync(fullP)) {
       let content = fs.readFileSync(fullP, "utf-8");
       let changed = false;
-      if (rsdConsumerRegex.test(content)) {
-        content = content.replace(rsdConsumerRegex, rsdConsumerFallback);
-        changed = true;
-      }
-      if (rsdServerRegex.test(content)) {
-        content = content.replace(rsdServerRegex, rsdServerFallback);
-        changed = true;
-      }
       if (content.includes("Connection closed.")) {
         content = content.replace(/options\s*&&\s*options\.unstable_allowPartialStream\s*\?\s*options\.unstable_allowPartialStream\s*:\s*!1/g, "!0");
         content = content.replace(/:\s*reportGlobalError\(\w+,\s*(?:new\s+)?Error\(['"]Connection closed\.['"]\)\);?/g, ": (typeof weakResponse !== 'undefined' ? (weakResponse._closed = !0) : void 0);");
@@ -817,6 +793,55 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
           );
           modified = true;
         }
+        // 1. Turbopack chunk loading resiliency on Cloudflare Workers
+        if (code.includes('error2.name="ChunkLoadError",entry=Promise.reject(error2)')) {
+          code = code.replace(
+            /error2\.name="ChunkLoadError",entry=Promise\.reject\(error2\)/g,
+            'error2.name="ChunkLoadError",entry=loadedChunk'
+          );
+          modified = true;
+        }
+        if (code.includes("ChunkLoadError") && code.includes("entry = Promise.reject(error)")) {
+          code = code.replace(
+            /error\.name = 'ChunkLoadError';\s*entry = Promise\.reject\(error\);/g,
+            "error.name = 'ChunkLoadError'; entry = loadedChunk;"
+          );
+          modified = true;
+        }
+        // 2. React Fizz streaming: Bypassing waitForAllReady deadlocks & fast-set-immediate stalls
+        if (code.includes('installing fast setImmediate patch')) {
+          code = code.replace(
+            /function install\(\)\{\{debug2\?\.\(["']installing fast setImmediate patch["']\);[\s\S]*?process\.nextTick=patchedNextTick\}\}/g,
+            'function install(){ return; }'
+          );
+          modified = true;
+        }
+        if (code.includes("n3?a3&&await a3:await(0,y.kf)()")) {
+          code = code.replace(/n3\?a3&&await a3:await\(0,y\.kf\)\(\)/g, "await (0, y.kf)()");
+          modified = true;
+        }
+        if (code.includes("waitForAllReady?await renderStream.allReady:await(0,_scheduler.waitAtLeastOneReactRenderTask)()")) {
+          code = code.replace(
+            /waitForAllReady\?await renderStream\.allReady:await\(0,_scheduler\.waitAtLeastOneReactRenderTask\)\(\)/g,
+            "await (0, _scheduler.waitAtLeastOneReactRenderTask)()"
+          );
+          modified = true;
+        }
+        if (code.includes("d2?await a2.allReady:await(0,i.waitAtLeastOneReactRenderTask)()")) {
+          code = code.replace(
+            /d2\?await a2\.allReady:await\(0,i\.waitAtLeastOneReactRenderTask\)\(\)/g,
+            "await (0, i.waitAtLeastOneReactRenderTask)()"
+          );
+          modified = true;
+        }
+        if (code.includes("waitForAllReady:$2")) {
+          code = code.replace(/waitForAllReady:\$2/g, "waitForAllReady:false");
+          modified = true;
+        }
+        if (code.includes("waitForAllReady:!0")) {
+          code = code.replace(/waitForAllReady:!0/g, "waitForAllReady:!1");
+          modified = true;
+        }
         if (code.includes("getMiddlewareManifest")) {
           code = code.replace(
             /getMiddlewareManifest\(\)\s*\{[^}]*require\([^)]*middlewareManifestPath[^)]*\)[^}]*\}/g,
@@ -879,6 +904,13 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
           code = code.replace(
             /redirect\(destination,statusCode\)\s*\{return this\.setHeader\("Location",destination\),this\.statusCode=statusCode,statusCode===308&&this\.setHeader\("Refresh",`0;url=\${destination}`\),this\}/g,
             'redirect(destination,statusCode){ this.setHeader("Location",destination); this.statusCode=statusCode; if(statusCode===308) this.setHeader("Refresh",`0;url=${destination}`); try { this.flushHeaders(); } catch(e){} return this; }'
+          );
+          modified = true;
+        }
+        if (code.includes('setHeader(name,value){let key=name.toLowerCase();')) {
+          code = code.replace(
+            /setHeader\(name,value\)\{let key=name\.toLowerCase\(\);return key===SET_COOKIE_HEADER&&\(Array\.isArray\(value\)\?this\._cookies=value:this\._cookies=\[value\]\),this\.headers\[key\]=value,this\}/g,
+            'setHeader(name,value){let key=name.toLowerCase();key===SET_COOKIE_HEADER&&(Array.isArray(value)?this._cookies=value:this._cookies=[value]);this.headers[key]=value;if(key==="location"){if(!this.statusCode||this.statusCode===200)this.statusCode=307;try{this.flushHeaders();}catch(e){}}return this;}'
           );
           modified = true;
         }

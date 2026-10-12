@@ -38,6 +38,14 @@ export default {
       (globalThis as any).RATE_LIMIT = env.RATE_LIMIT || env.rate_limit;
     }
 
+    const tStart = Date.now();
+    console.log("[FACULTYOS_ENTRY] typeof globalThis.setImmediate:", typeof (globalThis as any).setImmediate);
+    if (typeof (globalThis as any).setImmediate === "function") {
+      (globalThis as any).setImmediate(() => {
+        console.log("[FACULTYOS_ENTRY] setImmediate callback executed in workerd after", Date.now() - tStart, "ms");
+      });
+    }
+
     // Fast-path: protect dashboard routes.
     // If no session exists or session token is invalid/expired in D1, redirect to /login immediately.
     // This responds in <20ms at the edge without invoking the Next.js RSC pipeline.
