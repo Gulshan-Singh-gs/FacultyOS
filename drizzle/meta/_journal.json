@@ -15,6 +15,20 @@
       "when": 1791615862538,
       "tag": "0001_smart_morph",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791807311388,
+      "tag": "0002_drop_r2_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791807311389,
+      "tag": "0003_add_indexes_and_subscriptions",
+      "breakpoints": true
     }
   ]
 }

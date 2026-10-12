@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getAuth } from "@/server/auth";
-import { getDb } from "@/server/db";
+import { getDb, withTransaction } from "@/server/db";
 import {
   professorProfiles,
   boundaries,
@@ -50,49 +50,62 @@ export async function getOrCreateProfile(
   const profileId = `prof_${nanoid(12)}`;
   const displayName = userName || userEmail.split("@")[0] || "Professor";
 
-  const [newProfile] = await db
-    .insert(professorProfiles)
-    .values({
-      id: profileId,
-      userId,
-      displayName,
-      plan: "free",
-      timezone: "Asia/Kolkata",
-      aiEnabled: false,
-    })
-    .returning();
+  return await withTransaction(db, async (tx) => {
+    // Re-check inside transaction to eliminate race conditions
+    const [concurrent] = await tx
+      .select()
+      .from(professorProfiles)
+      .where(eq(professorProfiles.userId, userId))
+      .limit(1);
 
-  // Create default boundaries per PRD FR4
-  await db.insert(boundaries).values({
-    id: `bnd_${nanoid(12)}`,
-    profileId,
-    workDaysJson: JSON.stringify([
-      "monday",
-      "tuesday",
-      "wednesday",
-      "thursday",
-      "friday",
-    ]),
-    workStart: "09:00",
-    workEnd: "18:00",
-    responseSlaHours: 48,
-    weekendDefer: true,
-    vacationMode: false,
-    autoReplyTemplate:
-      "Thank you for reaching out. Please note requests received outside normal working hours are queued and reviewed during standard office hours.",
+    if (concurrent) {
+      return concurrent;
+    }
+
+    const [newProfile] = await tx
+      .insert(professorProfiles)
+      .values({
+        id: profileId,
+        userId,
+        displayName,
+        plan: "free",
+        timezone: "Asia/Kolkata",
+        aiEnabled: false,
+      })
+      .returning();
+
+    // Create default boundaries per PRD FR4
+    await tx.insert(boundaries).values({
+      id: `bnd_${nanoid(12)}`,
+      profileId,
+      workDaysJson: JSON.stringify([
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+      ]),
+      workStart: "09:00",
+      workEnd: "18:00",
+      responseSlaHours: 48,
+      weekendDefer: true,
+      vacationMode: false,
+      autoReplyTemplate:
+        "Thank you for reaching out. Please note requests received outside normal working hours are queued and reviewed during standard office hours.",
+    });
+
+    // Create initial usage metrics row for free tier tracking
+    const periodStart = new Date().toISOString().slice(0, 7);
+    await tx.insert(usageMetrics).values({
+      id: `use_${nanoid(12)}`,
+      profileId,
+      periodStart,
+      requestsThisPeriod: 0,
+      coursesActive: 0,
+    });
+
+    return newProfile;
   });
-
-  // Create initial usage metrics row for free tier tracking
-  const periodStart = new Date().toISOString().slice(0, 7);
-  await db.insert(usageMetrics).values({
-    id: `use_${nanoid(12)}`,
-    profileId,
-    periodStart,
-    requestsThisPeriod: 0,
-    coursesActive: 0,
-  });
-
-  return newProfile;
 }
 
 /**

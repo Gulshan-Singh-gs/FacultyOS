@@ -1,6 +1,6 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import type { Db } from "@/server/db";
+import { type Db, withTransaction } from "@/server/db";
 import {
   requests,
   courses,
@@ -218,42 +218,38 @@ export async function getRequestDetailWithOwnership(
     );
   }
 
-  let studentIdentityRow: typeof studentIdentities.$inferSelect | null = null;
-  if (requestRow.studentIdentityId) {
-    const [ident] = await db
+  // Concurrently fetch identity, policy, events, and attachments to optimize time complexity
+  const [identities, pols, events, requestAttachments] = await Promise.all([
+    requestRow.studentIdentityId
+      ? db
+          .select()
+          .from(studentIdentities)
+          .where(eq(studentIdentities.id, requestRow.studentIdentityId))
+          .limit(1)
+      : Promise.resolve([]),
+    requestRow.matchedPolicyId
+      ? db
+          .select()
+          .from(policies)
+          .where(eq(policies.id, requestRow.matchedPolicyId))
+          .limit(1)
+      : Promise.resolve([]),
+    db
       .select()
-      .from(studentIdentities)
-      .where(eq(studentIdentities.id, requestRow.studentIdentityId))
-      .limit(1);
-    studentIdentityRow = ident ?? null;
-  }
-
-  let matchedPolicyRow: typeof policies.$inferSelect | null = null;
-  if (requestRow.matchedPolicyId) {
-    const [pol] = await db
+      .from(requestEvents)
+      .where(eq(requestEvents.requestId, requestId))
+      .orderBy(requestEvents.createdAt),
+    db
       .select()
-      .from(policies)
-      .where(eq(policies.id, requestRow.matchedPolicyId))
-      .limit(1);
-    matchedPolicyRow = pol ?? null;
-  }
-
-  const events = await db
-    .select()
-    .from(requestEvents)
-    .where(eq(requestEvents.requestId, requestId))
-    .orderBy(requestEvents.createdAt);
-
-  const requestAttachments = await db
-    .select()
-    .from(attachments)
-    .where(eq(attachments.requestId, requestId));
+      .from(attachments)
+      .where(eq(attachments.requestId, requestId)),
+  ]);
 
   return {
     request: requestRow,
     course: courseRow,
-    studentIdentity: studentIdentityRow,
-    matchedPolicy: matchedPolicyRow,
+    studentIdentity: identities[0] ?? null,
+    matchedPolicy: pols[0] ?? null,
     events,
     attachments: requestAttachments,
   };
@@ -335,39 +331,42 @@ export async function updateRequestStatusActionInternal(
       eventType = `status_changed_to_${action}`;
   }
 
-  await db
-    .update(requests)
-    .set({
-      status: newStatus,
-      updatedAt: new Date(),
-      ...(actionNotes !== undefined ? { professorNotes: actionNotes } : {}),
-      ...(assignedToUserId !== undefined ? { assignedToUserId } : {}),
-      ...(newStatus === "approved" || newStatus === "denied" || newStatus === "closed"
-        ? { resolvedAt: new Date() }
-        : {}),
-    })
-    .where(eq(requests.id, requestId));
+  return await withTransaction(db, async (tx) => {
+    await tx
+      .update(requests)
+      .set({
+        status: newStatus,
+        updatedAt: new Date(),
+        ...(actionNotes !== undefined ? { professorNotes: actionNotes } : {}),
+        ...(assignedToUserId !== undefined ? { assignedToUserId } : {}),
+        ...(newStatus === "approved" || newStatus === "denied" || newStatus === "closed"
+          ? { resolvedAt: new Date() }
+          : {}),
+      })
+      .where(eq(requests.id, requestId));
 
-  await db.insert(requestEvents).values({
-    id: nanoid(),
-    requestId,
-    eventType,
-    actorType: "professor",
-    payloadJson: JSON.stringify({
-      action,
-      previousStatus: detail.request.status,
-      newStatus,
-      notes: actionNotes ?? detail.request.professorNotes ?? null,
-      assignedToUserId: assignedToUserId ?? null,
-    }),
+    await tx.insert(requestEvents).values({
+      id: nanoid(),
+      requestId,
+      eventType,
+      actorType: "professor",
+      payloadJson: JSON.stringify({
+        action,
+        previousStatus: detail.request.status,
+        newStatus,
+        notes: actionNotes ?? detail.request.professorNotes ?? null,
+        assignedToUserId: assignedToUserId ?? null,
+      }),
+    });
+
+    return { newStatus, eventType };
   });
-
-  return { newStatus, eventType };
 }
 
 /**
  * Bulk marks Auto-Resolved requests as Closed with strict profile ownership check.
  * Rejects with RequestAccessError if any requested item belongs to another professor.
+ * Executes atomically within a transaction and inserts audit events in batch.
  */
 export async function bulkCloseAutoResolvedInternal(
   db: Db,
@@ -400,28 +399,30 @@ export async function bulkCloseAutoResolvedInternal(
 
   if (validIds.length === 0) return { closedCount: 0 };
 
-  await db
-    .update(requests)
-    .set({
-      status: "closed",
-      resolvedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(inArray(requests.id, validIds));
+  return await withTransaction(db, async (tx) => {
+    await tx
+      .update(requests)
+      .set({
+        status: "closed",
+        resolvedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(inArray(requests.id, validIds));
 
-  for (const id of validIds) {
-    await db.insert(requestEvents).values({
-      id: nanoid(),
-      requestId: id,
-      eventType: "professor_closed",
-      actorType: "professor",
-      payloadJson: JSON.stringify({
-        action: "bulk_close_auto_resolved",
-        newStatus: "closed",
-      }),
-    });
-  }
+    for (const id of validIds) {
+      await tx.insert(requestEvents).values({
+        id: nanoid(),
+        requestId: id,
+        eventType: "professor_closed",
+        actorType: "professor",
+        payloadJson: JSON.stringify({
+          action: "bulk_close_auto_resolved",
+          newStatus: "closed",
+        }),
+      });
+    }
 
-  return { closedCount: validIds.length };
+    return { closedCount: validIds.length };
+  });
 }
 

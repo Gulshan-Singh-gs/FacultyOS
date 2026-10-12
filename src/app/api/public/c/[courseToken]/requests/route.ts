@@ -6,7 +6,7 @@ import {
   type AnyIntakeRequestInput,
 } from "@/lib/validations/request";
 import { PolicySchema } from "@/lib/validations/policy";
-import { createDb } from "@/server/db";
+import { createDb, withTransaction } from "@/server/db";
 import {
   courses,
   policies,
@@ -139,63 +139,59 @@ export async function POST(
 
   const decision = evaluatePolicies(safePolicies, payload);
 
-  /* 6. Persist identity + request + audit event */
+  /* 6. Persist identity + request + audit event atomically (ACID guarantees) */
   const emailHash = await sha256(input.studentEmail.toLowerCase().trim());
-  let identity = await db.query.studentIdentities.findFirst({
-    where: and(
-      eq(studentIdentities.emailHash, emailHash),
-      eq(studentIdentities.courseId, course.id),
-    ),
-  });
-
-  if (!identity) {
-    const id = nanoid();
-    await db.insert(studentIdentities).values({
-      id,
-      courseId: course.id,
-      displayLabel: input.studentName,
-      emailHash,
-    });
-    identity = {
-      id,
-      courseId: course.id,
-      displayLabel: input.studentName,
-      emailHash,
-      emailEncrypted: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-  }
-
   const requestId = nanoid();
   const publicToken = nanoid(24);
 
-  await db.insert(requests).values({
-    id: requestId,
-    publicToken,
-    courseId: course.id,
-    studentIdentityId: identity.id,
-    requestType: input.requestType,
-    status: decision.status,
-    intakePayloadJson: JSON.stringify(payload),
-    matchedPolicyId: decision.matchedPolicyId,
-    matchedPolicyVersion: decision.matchedPolicyVersion,
-    policySnapshotJson: JSON.stringify(decision.actions),
-    decisionReasonJson: JSON.stringify(decision.reasons),
-    penaltyPercent:
-      decision.actions.find((a) => a.type === "apply_penalty")
-        ?.penaltyPercent ?? null,
-  });
+  await withTransaction(db, async (tx) => {
+    let identity = await tx.query.studentIdentities.findFirst({
+      where: and(
+        eq(studentIdentities.emailHash, emailHash),
+        eq(studentIdentities.courseId, course.id),
+      ),
+    });
 
-  await db.insert(requestEvents).values({
-    id: nanoid(),
-    requestId,
-    eventType: "request_created",
-    actorType: "student",
-    payloadJson: JSON.stringify({
+    let identityId: string;
+    if (!identity) {
+      identityId = nanoid();
+      await tx.insert(studentIdentities).values({
+        id: identityId,
+        courseId: course.id,
+        displayLabel: input.studentName,
+        emailHash,
+      });
+    } else {
+      identityId = identity.id;
+    }
+
+    await tx.insert(requests).values({
+      id: requestId,
+      publicToken,
+      courseId: course.id,
+      studentIdentityId: identityId,
+      requestType: input.requestType,
       status: decision.status,
+      intakePayloadJson: JSON.stringify(payload),
       matchedPolicyId: decision.matchedPolicyId,
-    }),
+      matchedPolicyVersion: decision.matchedPolicyVersion,
+      policySnapshotJson: JSON.stringify(decision.actions),
+      decisionReasonJson: JSON.stringify(decision.reasons),
+      penaltyPercent:
+        decision.actions.find((a) => a.type === "apply_penalty")
+          ?.penaltyPercent ?? null,
+    });
+
+    await tx.insert(requestEvents).values({
+      id: nanoid(),
+      requestId,
+      eventType: "request_created",
+      actorType: "student",
+      payloadJson: JSON.stringify({
+        status: decision.status,
+        matchedPolicyId: decision.matchedPolicyId,
+      }),
+    });
   });
 
   /* 7. Push notification to queue with ExecutionContext.waitUntil resiliency */

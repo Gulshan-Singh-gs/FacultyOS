@@ -1,6 +1,6 @@
 import { count, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import type { Db } from "@/server/db";
+import { type Db, withTransaction } from "@/server/db";
 import { courses, policies, professorProfiles } from "@/server/db/schema";
 import {
   PolicySchema,
@@ -229,22 +229,24 @@ export async function seedCoursePoliciesInternal(
   courseId: string,
   templateIds: string[],
 ): Promise<Array<typeof policies.$inferSelect>> {
-  const results: Array<typeof policies.$inferSelect> = [];
+  return await withTransaction(db, async (tx) => {
+    const results: Array<typeof policies.$inferSelect> = [];
 
-  for (const templateId of templateIds) {
-    const template = getPolicyTemplateById(templateId);
-    if (!template) continue;
+    for (const templateId of templateIds) {
+      const template = getPolicyTemplateById(templateId);
+      if (!template) continue;
 
-    const created = await createPolicyInternal(
-      db,
-      profileId,
-      courseId,
-      template.policy,
-    );
-    results.push(created);
-  }
+      const created = await createPolicyInternal(
+        tx,
+        profileId,
+        courseId,
+        template.policy,
+      );
+      results.push(created);
+    }
 
-  return results;
+    return results;
+  });
 }
 
 /**

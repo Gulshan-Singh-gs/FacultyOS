@@ -16,10 +16,16 @@ export default async function DashboardPage() {
   console.log("[FACULTYOS_TRACE] DashboardPage: got env, creating db");
   const db = createDb(env.DB);
 
-  // 1. Fetch active courses for current professor
+  // 1. Fetch active courses for current professor (Pruned projection to optimize memory space complexity)
   console.log("[FACULTYOS_TRACE] DashboardPage: querying courses...");
   const profileCourses = await db
-    .select()
+    .select({
+      id: courses.id,
+      courseCode: courses.courseCode,
+      courseName: courses.courseName,
+      term: courses.term,
+      createdAt: courses.createdAt,
+    })
     .from(courses)
     .where(and(eq(courses.profileId, profile.id), eq(courses.status, "active")))
     .orderBy(courses.createdAt);
@@ -27,31 +33,32 @@ export default async function DashboardPage() {
 
   const courseIds = profileCourses.map((c) => c.id);
 
-  // 2. Fetch KPI counts
+  // 2. Fetch KPI counts concurrently in parallel to optimize time complexity
   let needsDecisionCount = 0;
   let autoResolvedCount = 0;
 
   if (courseIds.length > 0) {
-    const [needsDecision] = await db
-      .select({ total: count() })
-      .from(requests)
-      .where(
-        and(
-          inArray(requests.courseId, courseIds),
-          eq(requests.status, "pending_review"),
+    const [[needsDecision], [autoResolved]] = await Promise.all([
+      db
+        .select({ total: count() })
+        .from(requests)
+        .where(
+          and(
+            inArray(requests.courseId, courseIds),
+            eq(requests.status, "pending_review"),
+          ),
         ),
-      );
+      db
+        .select({ total: count() })
+        .from(requests)
+        .where(
+          and(
+            inArray(requests.courseId, courseIds),
+            inArray(requests.status, ["auto_approved", "auto_denied"]),
+          ),
+        ),
+    ]);
     needsDecisionCount = needsDecision?.total ?? 0;
-
-    const [autoResolved] = await db
-      .select({ total: count() })
-      .from(requests)
-      .where(
-        and(
-          inArray(requests.courseId, courseIds),
-          inArray(requests.status, ["auto_approved", "auto_denied"]),
-        ),
-      );
     autoResolvedCount = autoResolved?.total ?? 0;
   }
 

@@ -157,7 +157,10 @@ export const policies = sqliteTable(
     createdAt: now(),
     updatedAt: touched(),
   },
-  (t) => [index("policies_course_idx").on(t.courseId)],
+  (t) => [
+    index("policies_course_idx").on(t.courseId),
+    index("policies_course_priority_idx").on(t.courseId, t.priority),
+  ],
 );
 
 /* ---------- Student interactions ---------- */
@@ -214,31 +217,44 @@ export const requests = sqliteTable(
   (t) => [
     index("requests_course_idx").on(t.courseId),
     index("requests_status_idx").on(t.status),
+    index("requests_course_created_idx").on(t.courseId, t.createdAt),
+    index("requests_course_status_idx").on(t.courseId, t.status),
   ],
 );
 
-export const requestEvents = sqliteTable("request_events", {
-  id: text("id").primaryKey(),
-  requestId: text("request_id")
-    .notNull()
-    .references(() => requests.id, { onDelete: "cascade" }),
-  eventType: text("event_type").notNull(),
-  actorType: text("actor_type").notNull(), // student | professor | ta | system | ai
-  payloadJson: text("payload_json"),
-  createdAt: now(),
-});
+export const requestEvents = sqliteTable(
+  "request_events",
+  {
+    id: text("id").primaryKey(),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => requests.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(),
+    actorType: text("actor_type").notNull(), // student | professor | ta | system | ai
+    payloadJson: text("payload_json"),
+    createdAt: now(),
+  },
+  (t) => [
+    index("request_events_request_idx").on(t.requestId),
+    index("request_events_request_created_idx").on(t.requestId, t.createdAt),
+  ],
+);
 
-export const attachments = sqliteTable("attachments", {
-  id: text("id").primaryKey(),
-  requestId: text("request_id")
-    .notNull()
-    .references(() => requests.id, { onDelete: "cascade" }),
-  fileName: text("file_name").notNull(),
-  mimeType: text("mime_type").notNull(),
-  fileSize: integer("file_size").notNull(),
-  category: text("category").notNull(), // non-medical categories only (Hard Rule 1)
-  createdAt: now(),
-});
+export const attachments = sqliteTable(
+  "attachments",
+  {
+    id: text("id").primaryKey(),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => requests.id, { onDelete: "cascade" }),
+    fileName: text("file_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    fileSize: integer("file_size").notNull(),
+    category: text("category").notNull(), // non-medical categories only (Hard Rule 1)
+    createdAt: now(),
+  },
+  (t) => [index("attachments_request_idx").on(t.requestId)],
+);
 
 /* ---------- AI guardrail ledger ---------- */
 
@@ -321,35 +337,49 @@ export const ledgerEntries = sqliteTable(
     createdAt: now(),
     updatedAt: touched(),
   },
-  (t) => [index("ledger_profile_idx").on(t.profileId)],
+  (t) => [
+    index("ledger_profile_idx").on(t.profileId),
+    index("ledger_profile_category_idx").on(t.profileId, t.category),
+  ],
 );
 
-export const reports = sqliteTable("reports", {
-  id: text("id").primaryKey(),
-  profileId: text("profile_id")
-    .notNull()
-    .references(() => professorProfiles.id, { onDelete: "cascade" }),
-  reportType: text("report_type").notNull(),
-  periodStart: text("period_start").notNull(),
-  periodEnd: text("period_end").notNull(),
-  status: text("status").notNull().default("pending"),
-  createdAt: now(),
-});
+export const reports = sqliteTable(
+  "reports",
+  {
+    id: text("id").primaryKey(),
+    profileId: text("profile_id")
+      .notNull()
+      .references(() => professorProfiles.id, { onDelete: "cascade" }),
+    reportType: text("report_type").notNull(),
+    periodStart: text("period_start").notNull(),
+    periodEnd: text("period_end").notNull(),
+    status: text("status").notNull().default("pending"),
+    createdAt: now(),
+  },
+  (t) => [index("reports_profile_idx").on(t.profileId)],
+);
 
 /* ---------- Compliance ---------- */
 
-export const auditLogs = sqliteTable("audit_logs", {
-  id: text("id").primaryKey(),
-  profileId: text("profile_id").notNull(),
-  actorUserId: text("actor_user_id"),
-  actorType: text("actor_type").notNull(),
-  action: text("action").notNull(),
-  entityType: text("entity_type").notNull(),
-  entityId: text("entity_id"),
-  metadataJson: text("metadata_json"),
-  ipHash: text("ip_hash"),
-  createdAt: now(),
-});
+export const auditLogs = sqliteTable(
+  "audit_logs",
+  {
+    id: text("id").primaryKey(),
+    profileId: text("profile_id").notNull(),
+    actorUserId: text("actor_user_id"),
+    actorType: text("actor_type").notNull(),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id"),
+    metadataJson: text("metadata_json"),
+    ipHash: text("ip_hash"),
+    createdAt: now(),
+  },
+  (t) => [
+    index("audit_logs_profile_created_idx").on(t.profileId, t.createdAt),
+    index("audit_logs_entity_idx").on(t.entityType, t.entityId),
+  ],
+);
 
 export const usageMetrics = sqliteTable("usage_metrics", {
   id: text("id").primaryKey(),

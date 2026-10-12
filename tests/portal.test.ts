@@ -33,6 +33,7 @@ vi.mock("@/server/db", () => ({
       values: (...args: unknown[]) => mockInsertValues(...args),
     }),
   }),
+  withTransaction: async (db: any, fn: (tx: any) => Promise<any>) => fn(db),
 }));
 
 const mockKvGet = vi.fn();

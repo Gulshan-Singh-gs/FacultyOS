@@ -1,7 +1,7 @@
 import { and, count, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { sha256 } from "@/lib/utils";
-import type { Db } from "@/server/db";
+import { type Db, withTransaction } from "@/server/db";
 import {
   courses,
   courseMembers,
@@ -55,42 +55,44 @@ export async function createCourseInternal(
 
   const courseId = `crs_${nanoid(12)}`;
 
-  // 3. Insert course
-  const [newCourse] = await db
-    .insert(courses)
-    .values({
-      id: courseId,
-      profileId,
-      courseCode: input.courseCode,
-      courseName: input.courseName,
-      term: input.term,
-      syllabusText: input.syllabusText || null,
-      accessTokenHash: tokenHash,
+  return await withTransaction(db, async (tx) => {
+    // 3. Insert course
+    const [newCourse] = await tx
+      .insert(courses)
+      .values({
+        id: courseId,
+        profileId,
+        courseCode: input.courseCode,
+        courseName: input.courseName,
+        term: input.term,
+        syllabusText: input.syllabusText || null,
+        accessTokenHash: tokenHash,
+        status: "active",
+      })
+      .returning();
+
+    // 4. Insert creator as owner in course_members
+    await tx.insert(courseMembers).values({
+      id: `cm_${nanoid(12)}`,
+      courseId,
+      userId,
+      role: "owner",
       status: "active",
-    })
-    .returning();
+    });
 
-  // 4. Insert creator as owner in course_members
-  await db.insert(courseMembers).values({
-    id: `cm_${nanoid(12)}`,
-    courseId,
-    userId,
-    role: "owner",
-    status: "active",
+    // 5. Update usage metrics
+    await tx
+      .update(usageMetrics)
+      .set({
+        coursesActive: sql`${usageMetrics.coursesActive} + 1`,
+      })
+      .where(eq(usageMetrics.profileId, profileId));
+
+    return {
+      course: newCourse,
+      rawToken,
+    };
   });
-
-  // 5. Update usage metrics
-  await db
-    .update(usageMetrics)
-    .set({
-      coursesActive: sql`${usageMetrics.coursesActive} + 1`,
-    })
-    .where(eq(usageMetrics.profileId, profileId));
-
-  return {
-    course: newCourse,
-    rawToken,
-  };
 }
 
 /**
@@ -159,20 +161,22 @@ export async function archiveCourseInternal(
     throw new CourseAccessError("You do not have permission to modify this course");
   }
 
-  await db
-    .update(courses)
-    .set({
-      status: "archived",
-      updatedAt: new Date(),
-    })
-    .where(eq(courses.id, courseId));
+  await withTransaction(db, async (tx) => {
+    await tx
+      .update(courses)
+      .set({
+        status: "archived",
+        updatedAt: new Date(),
+      })
+      .where(eq(courses.id, courseId));
 
-  await db
-    .update(usageMetrics)
-    .set({
-      coursesActive: sql`MAX(0, ${usageMetrics.coursesActive} - 1)`,
-    })
-    .where(eq(usageMetrics.profileId, profileId));
+    await tx
+      .update(usageMetrics)
+      .set({
+        coursesActive: sql`MAX(0, ${usageMetrics.coursesActive} - 1)`,
+      })
+      .where(eq(usageMetrics.profileId, profileId));
+  });
 }
 
 /**

@@ -12,7 +12,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // In production, log error to monitoring service
+    console.error("[FacultyOS GlobalError]", error);
   }, [error]);
 
   return (
@@ -32,6 +32,11 @@ export default function GlobalError({
           <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
             FacultyOS encountered an unexpected condition. Your student records and audit trails remain safely intact.
           </p>
+          {error?.message && (
+            <div className="mt-2 p-2 rounded bg-red-500/10 text-red-400 font-mono text-[11px] text-left break-all max-h-24 overflow-y-auto">
+              {error.message}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">

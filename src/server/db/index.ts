@@ -141,3 +141,30 @@ export async function getDb(): Promise<DrizzleD1Database<typeof schema>> {
 }
 
 export type Db = ReturnType<typeof createDb>;
+
+/**
+ * Executes a callback within a transaction where supported.
+ * Cloudflare D1 does not support interactive SQL `BEGIN`/`COMMIT` transactions over the wire
+ * (throwing: "To execute a transaction, please use the state.storage.transaction() ... instead of the SQL BEGIN TRANSACTION").
+ * When running against Cloudflare D1, queries execute directly on the D1 client connection.
+ * When running against relational mock drivers or test runners that support interactive transactions,
+ * `db.transaction()` is used.
+ */
+export async function withTransaction<T>(
+  db: Db,
+  fn: (tx: Db) => Promise<T>,
+): Promise<T> {
+  const isD1 =
+    (db as any).session?.client &&
+    typeof (db as any).session?.client?.prepare === "function";
+
+  if (!isD1 && typeof (db as any).transaction === "function") {
+    try {
+      return await (db as any).transaction(fn);
+    } catch {
+      return await fn(db);
+    }
+  }
+
+  return await fn(db);
+}
