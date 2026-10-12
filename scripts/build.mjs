@@ -80,6 +80,30 @@ function collectManifestData() {
         console.warn(`⚠️ Error reading manifest ${file}:`, err);
       }
     }
+
+    // Second pass: Cross-reference clientModules -> ssrModuleMapping
+    for (const manifest of Object.values(manifests)) {
+      if (manifest && manifest.clientModules) {
+        manifest.ssrModuleMapping = manifest.ssrModuleMapping || {};
+        for (const [modPath, modInfo] of Object.entries(manifest.clientModules)) {
+          const ssr = manifest.ssrModuleMapping[modInfo.id] || masterSsr[modInfo.id];
+          if (ssr) {
+            const keysToRegister = [
+              modPath,
+              modPath + "#*",
+              modPath + "#default",
+            ];
+            if (modInfo.name) {
+              keysToRegister.push(modPath + "#" + modInfo.name);
+            }
+            for (const k of keysToRegister) {
+              manifest.ssrModuleMapping[k] = ssr;
+              masterSsr[k] = ssr;
+            }
+          }
+        }
+      }
+    }
   }
 
   return { manifests, masterSsr, masterRsc, serverRef };
@@ -133,6 +157,21 @@ var _initNextManifests = function() {
         if (baseId in target) return wrapModuleExports(target[baseId]);
         for (var pair of clientReferenceManifestsPerRoute.values()) {
           var m = pair && pair.clientReferenceManifest;
+          if (m && m.clientModules) {
+            var clientMod = m.clientModules[id] || m.clientModules[baseId];
+            if (!clientMod && typeof baseId === "string") {
+              for (var cmk in m.clientModules) {
+                if (cmk.endsWith(baseId) || baseId.endsWith(cmk) || (cmk.includes("/next/dist/") && baseId.includes("/next/dist/") && cmk.slice(cmk.indexOf("/next/dist/")) === baseId.slice(baseId.indexOf("/next/dist/")))) {
+                  clientMod = m.clientModules[cmk];
+                  break;
+                }
+              }
+            }
+            if (clientMod) {
+              var ssr = (m[prop] && (m[prop][id] || m[prop][baseId] || m[prop][clientMod.id])) || (masterMap && (masterMap[id] || masterMap[baseId] || masterMap[clientMod.id]));
+              if (ssr) return wrapModuleExports(ssr);
+            }
+          }
           if (m && m[prop]) {
             var val = m[prop][id] || m[prop][baseId];
             if (val) return wrapModuleExports(val);
@@ -805,6 +844,14 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
           code = code.replace(
             /error\.name = 'ChunkLoadError';\s*entry = Promise\.reject\(error\);/g,
             "error.name = 'ChunkLoadError'; entry = loadedChunk;"
+          );
+          modified = true;
+        }
+        // 1b. Turbopack SSR client-component resolution & safe fallback
+        if (code.includes("globalThis.__next_require__=")) {
+          code = code.replace(
+            /globalThis\.__next_require__\s*=\s*\(\.\.\.([\w$]+)\)\s*=>\s*\{[\s\S]*?([\w$]+)\.require\([\s\S]*?([\w$]+)\(\)&&\(0,\s*([\w$]+)\.trackPendingImport\)\(([\w$]+)\),\s*\5;?(?:\}catch\(err\)\{[\s\S]*?throw err;?\}\})?\}/g,
+            'globalThis.__next_require__=(...$1)=>{let reqId=$1[0];if(typeof reqId==="string"&&(reqId.startsWith("[project]")||reqId.includes("/"))){let base=reqId.split("#")[0];let e=globalThis.__EMBEDDED_SSR_MAPPING&&(globalThis.__EMBEDDED_SSR_MAPPING[reqId]||globalThis.__EMBEDDED_SSR_MAPPING[base]);if(e){reqId=e["*"]?.id!==undefined?e["*"].id:(e.id!==undefined?e.id:reqId);}}try{let $5=$2.require(reqId,...$1.slice(1));return $3()&&(0,$4.trackPendingImport)($5),$5;}catch(err){if(err&&String(err.message||"").includes("module factory is not available")){console.warn("[FacultyOS] Safe fallback for missing SSR module:",$1[0]);let dummy=()=>null;dummy.default=dummy;dummy.__esModule=true;return new Proxy(dummy,{get:(t,p)=>(p==="__esModule"?true:p==="default"?dummy:dummy)});}throw err;}}'
           );
           modified = true;
         }
