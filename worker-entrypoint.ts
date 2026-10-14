@@ -1,7 +1,13 @@
+// NOTE: ESM static `import` statements are hoisted above ALL top-level code,
+// so this setImmediate shim runs AFTER handler.mjs has already been evaluated.
+// The real fix is the shim prepended to handler.mjs by scripts/build.mjs.
+// This shim here is defense-in-depth for the worker-entrypoint module itself.
 const _origSetTimeout = globalThis.setTimeout.bind(globalThis);
-(globalThis as any).setImmediate = (fn: (...args: any[]) => void, ...args: any[]) =>
-  _origSetTimeout(() => fn(...args), 0);
-(globalThis as any).clearImmediate = (id: any) => globalThis.clearTimeout(id);
+if (typeof (globalThis as any).setImmediate !== "function") {
+  (globalThis as any).setImmediate = (fn: (...args: any[]) => void, ...args: any[]) =>
+    _origSetTimeout(() => fn(...args), 0);
+  (globalThis as any).clearImmediate = (id: any) => globalThis.clearTimeout(id);
+}
 // @ts-ignore
 import handler from "./.open-next/worker.js";
 import { handleQueue, type QueueMessageBody, type QueueConsumerEnv } from "./src/workers/queue-consumer";

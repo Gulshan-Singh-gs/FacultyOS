@@ -666,9 +666,46 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
       } else if (entry.isFile() && (entry.name.endsWith(".js") || entry.name.endsWith(".mjs"))) {
         let code = fs.readFileSync(fullPath, "utf-8");
         let modified = false;
-        if (entry.name === "handler.mjs" && !code.includes("__EMBEDDED_RSC_MANIFEST")) {
-          code = singletonHelperCode + "\n" + code;
-          modified = true;
+        if (entry.name === "handler.mjs") {
+          // Inject setImmediate shim at the VERY TOP of handler.mjs.
+          // This MUST precede everything else because the ESM `import` of node:timers
+          // is hoisted during module evaluation. By prepending the shim here (before
+          // any other code), globalThis.setImmediate is defined before React Fizz /
+          // app-page runtime reads it, preventing the RSC stream flush deadlock.
+          const setImmediateShim = `
+// [FacultyOS] setImmediate shim — must be at the top of handler.mjs
+// Cloudflare Workers / workerd does not implement setImmediate.
+// React Fizz (react-server-dom-webpack) uses setImmediate to schedule
+// stream flushes. Without this shim the RSC stream never flushes and
+// every /dashboard request hangs until the 25s timeout fires.
+(function patchSetImmediate(){
+  var _origST = globalThis.setTimeout.bind(globalThis);
+  var _origCT = globalThis.clearTimeout.bind(globalThis);
+  if (typeof globalThis.setImmediate !== "function") {
+    globalThis.setImmediate = function setImmediate(fn) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      return _origST(function(){ fn.apply(null, args); }, 0);
+    };
+    globalThis.clearImmediate = function clearImmediate(id) { _origCT(id); };
+  }
+  // Also patch the node:timers named export used by React internals
+  try {
+    var nt = require("node:timers");
+    if (nt && typeof nt.setImmediate !== "function") {
+      nt.setImmediate = globalThis.setImmediate;
+      nt.clearImmediate = globalThis.clearImmediate;
+    }
+  } catch(_){}
+})();
+`;
+          if (!code.includes("[FacultyOS] setImmediate shim")) {
+            code = setImmediateShim + "\n" + code;
+            modified = true;
+          }
+          if (!code.includes("__EMBEDDED_RSC_MANIFEST")) {
+            code = singletonHelperCode + "\n" + code;
+            modified = true;
+          }
         }
         if (code.includes("evalManifestWithRetries")) {
           code = code.replace(
@@ -801,11 +838,40 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
         if (code.includes('promiseResponse,resolve:resolveResponse') || code.includes('Promise.withResolvers()')) {
           code = code.replace(
             /return ctx\.waitUntil\(handler3\(internalEvent,\{streamCreator,waitUntil:ctx\.waitUntil\.bind\(ctx\)\}\)\),promiseResponse/g,
-            `const timeoutId = setTimeout(() => {
+            `// [FacultyOS] Collect FACULTYOS_TRACE logs during the request so they can
+            // be included in the 504 timeout body for post-mortem debugging.
+            var __facultyosTraceLogs = [];
+            var __origConsoleLog = console.log;
+            var __origConsoleWarn = console.warn;
+            var __origConsoleError = console.error;
+            var __patchConsole = function(orig, level) {
+              return function() {
+                try {
+                  var msg = Array.prototype.join.call(arguments, " ");
+                  if (msg.includes("[FACULTYOS_TRACE]") || msg.includes("[FACULTYOS_ENTRY]")) {
+                    __facultyosTraceLogs.push("[" + level + "] " + msg);
+                  }
+                } catch(_) {}
+                return orig.apply(console, arguments);
+              };
+            };
+            console.log = __patchConsole(__origConsoleLog, "LOG");
+            console.warn = __patchConsole(__origConsoleWarn, "WARN");
+            console.error = __patchConsole(__origConsoleError, "ERROR");
+            var __restoreConsole = function() {
+              console.log = __origConsoleLog;
+              console.warn = __origConsoleWarn;
+              console.error = __origConsoleError;
+            };
+            const timeoutId = setTimeout(() => {
+              __restoreConsole();
               try {
+                var traceDump = __facultyosTraceLogs.length > 0
+                  ? "\n\n--- FACULTYOS_TRACE DUMP ---\n" + __facultyosTraceLogs.join("\n")
+                  : "\n\n--- FACULTYOS_TRACE DUMP ---\n(no trace logs captured — check if request stalled before DashboardLayout start)";
                 resolveResponse(
                   new Response(
-                    "FacultyOS Gateway Timeout: Server took longer than 25s to generate a response.",
+                    "FacultyOS Gateway Timeout: Server took longer than 25s to generate a response." + traceDump,
                     { status: 504, headers: { "content-type": "text/plain; charset=utf-8" } }
                   )
                 );
@@ -814,6 +880,7 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
             ctx.waitUntil(
               handler3(internalEvent, { streamCreator, waitUntil: ctx.waitUntil.bind(ctx) })
                 .catch((err) => {
+                  __restoreConsole();
                   console.error("[FacultyOS OpenNext Handler Error]", err);
                   try {
                     resolveResponse(
@@ -825,6 +892,7 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
                   } catch (_) {}
                 })
                 .finally(() => {
+                  __restoreConsole();
                   clearTimeout(timeoutId);
                 })
             );
