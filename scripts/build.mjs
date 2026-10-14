@@ -866,9 +866,10 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
             const timeoutId = setTimeout(() => {
               __restoreConsole();
               try {
+                var _nl = String.fromCharCode(10);
                 var traceDump = __facultyosTraceLogs.length > 0
-                  ? "\n\n--- FACULTYOS_TRACE DUMP ---\n" + __facultyosTraceLogs.join("\n")
-                  : "\n\n--- FACULTYOS_TRACE DUMP ---\n(no trace logs captured — check if request stalled before DashboardLayout start)";
+                  ? _nl + _nl + "--- FACULTYOS_TRACE DUMP ---" + _nl + __facultyosTraceLogs.join(_nl)
+                  : _nl + _nl + "--- FACULTYOS_TRACE DUMP ---" + _nl + "(no trace logs captured — check if request stalled before DashboardLayout start)";
                 resolveResponse(
                   new Response(
                     "FacultyOS Gateway Timeout: Server took longer than 25s to generate a response." + traceDump,
