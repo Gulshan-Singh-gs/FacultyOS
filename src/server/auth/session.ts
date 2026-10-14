@@ -109,7 +109,23 @@ export async function getOrCreateProfile(
   return profile;
 }
 
-async function resolveDirectSessionFromD1(cookieHeader: string) {
+interface ResolvedSessionData {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    image?: string | null;
+  };
+  session: {
+    id: string;
+    token: string;
+    expiresAt: Date;
+  };
+}
+
+async function resolveDirectSessionFromD1(
+  cookieHeader: string,
+): Promise<ResolvedSessionData | null> {
   try {
     const match =
       cookieHeader.match(/(?:__Secure-)?(?:facultyos|better-auth)\.session_token=([^;]+)/i) ||
@@ -144,8 +160,17 @@ async function resolveDirectSessionFromD1(cookieHeader: string) {
 
     console.log("[FACULTYOS_TRACE] direct D1 session verification success for:", dbUser.email);
     return {
-      user: dbUser,
-      session: activeSession,
+      user: {
+        id: dbUser.id,
+        email: dbUser.email,
+        name: dbUser.name,
+        image: dbUser.image ?? null,
+      },
+      session: {
+        id: activeSession.id,
+        token: activeSession.token,
+        expiresAt: activeSession.expiresAt,
+      },
     };
   } catch (err) {
     console.warn("[FACULTYOS_TRACE] resolveDirectSessionFromD1 error:", err);
