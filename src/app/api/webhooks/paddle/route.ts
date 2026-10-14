@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const event: PaddleWebhookEvent = JSON.parse(rawBody);
     const db = await getDb();
 
-    const result = await handlePaddleSubscriptionEvent(db, event);
+    const result = await handlePaddleSubscriptionEvent(db, event, env);
 
     if (!result.handled && result.error) {
       console.warn("[Paddle Webhook] Event not handled:", result.error);

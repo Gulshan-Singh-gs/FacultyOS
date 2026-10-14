@@ -19,6 +19,7 @@ import type { Policy, RequestPayload } from "@/server/services/policy-engine/typ
 import { nanoid } from "nanoid";
 import { eq, and } from "drizzle-orm";
 import { getServerEnv } from "@/server/env";
+import { verifyTurnstileToken } from "@/server/services/turnstile";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +86,21 @@ export async function POST(
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
     input = parsed.data;
+  }
+
+  /* 2b. Turnstile bot protection check if configured */
+  if (env.TURNSTILE_SECRET_KEY && input.turnstileToken) {
+    const turnstileCheck = await verifyTurnstileToken(
+      input.turnstileToken,
+      env.TURNSTILE_SECRET_KEY,
+      ip,
+    );
+    if (!turnstileCheck.success) {
+      return NextResponse.json(
+        { error: "Bot verification failed. Please complete the verification again." },
+        { status: 403 },
+      );
+    }
   }
 
   /* 3. Resolve course by hashed token (tenant isolation — Hard Rule 5) */

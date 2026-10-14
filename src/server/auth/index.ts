@@ -74,8 +74,8 @@ export async function getAuth() {
   const env = await getServerEnv();
   const db = await getDb();
 
-  // Resolve secret: prefer process.env.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET
-  const secret = process.env.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET;
+  // Resolve secret: prefer env.BETTER_AUTH_SECRET || process.env.BETTER_AUTH_SECRET
+  const secret = env.BETTER_AUTH_SECRET || process.env.BETTER_AUTH_SECRET;
 
   if (!secret) {
     if (process.env.NODE_ENV === "production") {
@@ -90,15 +90,15 @@ export async function getAuth() {
 
   const resolvedSecret = secret || "facultyos-dev-secret-do-not-use-in-production";
   const baseURL =
-    process.env.BETTER_AUTH_URL ||
     env.BETTER_AUTH_URL ||
+    process.env.BETTER_AUTH_URL ||
     "https://facultyos.gs-softwares.workers.dev";
 
   const rawTrusted =
-    process.env.BETTER_AUTH_TRUSTED_ORIGINS ||
     (Array.isArray(env.BETTER_AUTH_TRUSTED_ORIGINS)
       ? env.BETTER_AUTH_TRUSTED_ORIGINS.join(",")
       : env.BETTER_AUTH_TRUSTED_ORIGINS) ||
+    process.env.BETTER_AUTH_TRUSTED_ORIGINS ||
     "";
 
   const trustedOrigins = (

@@ -1,17 +1,27 @@
 import { z } from "zod";
 
 export interface FacultyOSEnv {
+  // Bindings
   DB: D1Database;
   RATE_LIMIT: KVNamespace;
   NOTIFICATIONS?: Queue;
   AI_JOBS?: Queue;
   AI?: Ai;
+  // Auth
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL?: string;
   BETTER_AUTH_TRUSTED_ORIGINS?: string[];
+  // Resend
   RESEND_API_KEY: string;
+  // Paddle
+  NEXT_PUBLIC_PADDLE_CLIENT_TOKEN?: string;
+  NEXT_PUBLIC_PADDLE_ENVIRONMENT?: string;
+  NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY?: string;
+  NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY?: string;
+  NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER?: string;
   PADDLE_API_KEY?: string;
   PADDLE_WEBHOOK_SECRET_KEY?: string;
+  // Turnstile
   TURNSTILE_SECRET_KEY?: string;
   [key: string]: unknown;
 }
@@ -52,6 +62,11 @@ export const EnvSchema = z.object({
     .string()
     .min(1, "RESEND_API_KEY is required for mail delivery")
     .optional(),
+  NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: z.string().optional(),
+  NEXT_PUBLIC_PADDLE_ENVIRONMENT: z.string().optional(),
+  NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY: z.string().optional(),
+  NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY: z.string().optional(),
+  NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER: z.string().optional(),
   PADDLE_API_KEY: z.string().optional(),
   PADDLE_WEBHOOK_SECRET_KEY: z.string().optional(),
   TURNSTILE_SECRET_KEY: z.string().optional(),
@@ -134,6 +149,35 @@ export async function getServerEnv(): Promise<FacultyOSEnv> {
     envObj.BETTER_AUTH_TRUSTED_ORIGINS
   );
   envObj.BETTER_AUTH_TRUSTED_ORIGINS = parsedOrigins;
+
+  // Paddle variable defaults matching Cloudflare Dashboard
+  envObj.NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY =
+    envObj.NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY ||
+    process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY ||
+    "pri_01m4mwgb41h1bqc8p81cg0ee4g";
+  envObj.NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER =
+    envObj.NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER ||
+    process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER ||
+    "pri_01m4mwpvt6wevqx3dty501tdcx";
+  envObj.NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY =
+    envObj.NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY ||
+    process.env.NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY ||
+    "pri_01m4mwvdhcv3hyrymyxazr1rwt";
+  envObj.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN =
+    envObj.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ||
+    process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ||
+    "live_e6cf5d84a9bebe17a33235fdc42";
+  envObj.NEXT_PUBLIC_PADDLE_ENVIRONMENT =
+    envObj.NEXT_PUBLIC_PADDLE_ENVIRONMENT ||
+    process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT ||
+    "production";
+
+  // Mirror resolved string env vars onto process.env for third-party libraries (Better Auth, etc.)
+  for (const [key, value] of Object.entries(envObj)) {
+    if (typeof value === "string") {
+      process.env[key] = value;
+    }
+  }
 
   return envObj as unknown as FacultyOSEnv;
 }

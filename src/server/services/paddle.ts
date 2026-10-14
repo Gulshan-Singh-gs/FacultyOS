@@ -66,10 +66,19 @@ export interface PaddleWebhookEvent {
 /**
  * Maps Paddle Price ID to application plan tier
  */
-export function mapPriceToPlan(priceId?: string): "free" | "pro" | "department" {
-  const proMonthly = process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY || "pri_01m4mwgb41h1bqc8p81cg0ee4g";
-  const proSemester = process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER || "pri_01m4mwpvt6wevqx3dty501tdcx";
-  const deptYearly = process.env.NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY || "pri_01m4mwvdhcv3hyrymyxazr1rwt";
+export function mapPriceToPlan(priceId?: string, env?: any): "free" | "pro" | "department" {
+  const proMonthly =
+    env?.NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY ||
+    process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY ||
+    "pri_01m4mwgb41h1bqc8p81cg0ee4g";
+  const proSemester =
+    env?.NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER ||
+    process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER ||
+    "pri_01m4mwpvt6wevqx3dty501tdcx";
+  const deptYearly =
+    env?.NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY ||
+    process.env.NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY ||
+    "pri_01m4mwvdhcv3hyrymyxazr1rwt";
 
   if (priceId === proMonthly || priceId === proSemester) {
     return "pro";
@@ -86,6 +95,7 @@ export function mapPriceToPlan(priceId?: string): "free" | "pro" | "department" 
 export async function handlePaddleSubscriptionEvent(
   db: Db,
   event: PaddleWebhookEvent,
+  env?: any,
 ): Promise<{ handled: boolean; error?: string }> {
   const { event_type, data } = event;
 
@@ -105,7 +115,7 @@ export async function handlePaddleSubscriptionEvent(
       return { handled: false, error: "Missing profileId and subscriptionId" };
     }
 
-    const plan = mapPriceToPlan(priceId);
+    const plan = mapPriceToPlan(priceId, env);
     const isPlanActive = status === "active" || status === "trialing";
 
     // 1. Locate professor profile
