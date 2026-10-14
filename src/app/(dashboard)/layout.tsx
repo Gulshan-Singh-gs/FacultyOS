@@ -9,7 +9,9 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  console.log("[FACULTYOS_TRACE] DashboardLayout: start");
   const { user, profile } = await requireProfile();
+  console.log("[FACULTYOS_TRACE] DashboardLayout: got profile, returning AppShell JSX");
 
   return (
     <AppShell

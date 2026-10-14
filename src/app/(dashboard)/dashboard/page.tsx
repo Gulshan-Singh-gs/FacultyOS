@@ -8,13 +8,17 @@ import { eq, and, inArray, count } from "drizzle-orm";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  console.log("[FACULTYOS_TRACE] DashboardPage: start");
   const { profile } = await requireProfile();
+  console.log("[FACULTYOS_TRACE] DashboardPage: got profile, getting db...");
   const db = await getDb();
+  console.log("[FACULTYOS_TRACE] DashboardPage: querying courses for profile:", profile.id);
 
   const profileCourses = await db
     .select()
     .from(courses)
     .where(eq(courses.profileId, profile.id));
+  console.log("[FACULTYOS_TRACE] DashboardPage: profileCourses found:", profileCourses.length);
 
   let needsDecisionCount = 0;
   let autoResolvedCount = 0;

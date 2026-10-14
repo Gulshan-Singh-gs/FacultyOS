@@ -855,40 +855,6 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
           );
           modified = true;
         }
-        // 2. React Fizz streaming: Bypassing waitForAllReady deadlocks & fast-set-immediate stalls
-        if (code.includes('installing fast setImmediate patch')) {
-          code = code.replace(
-            /function install\(\)\{\{debug2\?\.\(["']installing fast setImmediate patch["']\);[\s\S]*?process\.nextTick=patchedNextTick\}\}/g,
-            'function install(){ return; }'
-          );
-          modified = true;
-        }
-        if (code.includes("n3?a3&&await a3:await(0,y.kf)()")) {
-          code = code.replace(/n3\?a3&&await a3:await\(0,y\.kf\)\(\)/g, "await (0, y.kf)()");
-          modified = true;
-        }
-        if (code.includes("waitForAllReady?await renderStream.allReady:await(0,_scheduler.waitAtLeastOneReactRenderTask)()")) {
-          code = code.replace(
-            /waitForAllReady\?await renderStream\.allReady:await\(0,_scheduler\.waitAtLeastOneReactRenderTask\)\(\)/g,
-            "await (0, _scheduler.waitAtLeastOneReactRenderTask)()"
-          );
-          modified = true;
-        }
-        if (code.includes("d2?await a2.allReady:await(0,i.waitAtLeastOneReactRenderTask)()")) {
-          code = code.replace(
-            /d2\?await a2\.allReady:await\(0,i\.waitAtLeastOneReactRenderTask\)\(\)/g,
-            "await (0, i.waitAtLeastOneReactRenderTask)()"
-          );
-          modified = true;
-        }
-        if (code.includes("waitForAllReady:$2")) {
-          code = code.replace(/waitForAllReady:\$2/g, "waitForAllReady:false");
-          modified = true;
-        }
-        if (code.includes("waitForAllReady:!0")) {
-          code = code.replace(/waitForAllReady:!0/g, "waitForAllReady:!1");
-          modified = true;
-        }
         if (code.includes("getMiddlewareManifest")) {
           code = code.replace(
             /getMiddlewareManifest\(\)\s*\{[^}]*require\([^)]*middlewareManifestPath[^)]*\)[^}]*\}/g,

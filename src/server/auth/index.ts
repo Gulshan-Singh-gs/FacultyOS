@@ -70,12 +70,7 @@ export function createAuth(
   });
 }
 
-let cachedAuth: ReturnType<typeof createAuth> | null = null;
-
 export async function getAuth() {
-  if (cachedAuth) {
-    return cachedAuth;
-  }
   const env = await getServerEnv();
   const db = await getDb();
 
@@ -114,6 +109,5 @@ export async function getAuth() {
     .map((url) => url.trim().replace(/\/$/, ""))
     .filter(Boolean);
 
-  cachedAuth = createAuth(db, resolvedSecret, baseURL, trustedOrigins);
-  return cachedAuth;
+  return createAuth(db, resolvedSecret, baseURL, trustedOrigins);
 }

@@ -1,3 +1,7 @@
+const _origSetTimeout = globalThis.setTimeout.bind(globalThis);
+(globalThis as any).setImmediate = (fn: (...args: any[]) => void, ...args: any[]) =>
+  _origSetTimeout(() => fn(...args), 0);
+(globalThis as any).clearImmediate = (id: any) => globalThis.clearTimeout(id);
 // @ts-ignore
 import handler from "./.open-next/worker.js";
 import { handleQueue, type QueueMessageBody, type QueueConsumerEnv } from "./src/workers/queue-consumer";
@@ -63,10 +67,13 @@ export default {
       const d1 = env?.DB || env?.facultyos;
       if (d1 && typeof d1.prepare === "function") {
         try {
-          const now = Date.now();
+          const nowMs = Date.now();
+          const nowSec = Math.floor(nowMs / 1000);
           const sessionRow = await d1
-            .prepare("SELECT user_id FROM session WHERE token = ? AND expires_at > ? LIMIT 1")
-            .bind(token, now)
+            .prepare(
+              "SELECT user_id FROM session WHERE token = ? AND (expires_at > ? OR (expires_at < 10000000000 AND expires_at > ?)) LIMIT 1"
+            )
+            .bind(token, nowMs, nowSec)
             .first();
 
           if (!sessionRow) {

@@ -64,6 +64,7 @@ const NAV_ITEMS = [
 ];
 
 export function AppShell({ children, user, profile }: AppShellProps) {
+  console.log("[FACULTYOS_TRACE] AppShell: render start");
   const rawPathname = usePathname();
   const pathname = rawPathname || "";
   const router = useRouter();
