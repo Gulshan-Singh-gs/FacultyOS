@@ -91,7 +91,7 @@ export async function processNotificationQueueMessage(
   // Resolve base URL: caller-provided > env binding > hardcoded fallback
   const resolvedBaseUrl =
     baseUrl ||
-    (env as any).BETTER_AUTH_URL ||
+    (env as unknown as { BETTER_AUTH_URL?: string })?.BETTER_AUTH_URL ||
     "https://facultyos.gs-softwares.workers.dev";
   const { requestId } = msg;
   if (!requestId) {

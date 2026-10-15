@@ -161,7 +161,7 @@ export async function POST(
   const publicToken = nanoid(24);
 
   await withTransaction(db, async (tx) => {
-    let identity = await tx.query.studentIdentities.findFirst({
+    const identity = await tx.query.studentIdentities.findFirst({
       where: and(
         eq(studentIdentities.emailHash, emailHash),
         eq(studentIdentities.courseId, course.id),
@@ -226,7 +226,11 @@ export async function POST(
     }
   })();
 
-  const cfCtx = (globalThis as any).__CF_CTX__;
+  const cfCtx = (
+    globalThis as unknown as {
+      __CF_CTX__?: { waitUntil?: (p: Promise<unknown>) => void };
+    }
+  ).__CF_CTX__;
   if (cfCtx?.waitUntil && typeof cfCtx.waitUntil === "function") {
     cfCtx.waitUntil(queuePromise);
   } else {

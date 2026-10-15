@@ -73,9 +73,12 @@ export const EnvSchema = z.object({
 });
 
 export async function getServerEnv(): Promise<FacultyOSEnv> {
-  let envObj: any = (globalThis as any).__CF_ENV__
-    ? { ...(globalThis as any).__CF_ENV__ }
-    : null;
+  const g = globalThis as unknown as Record<string, unknown>;
+  const cfEnv = g.__CF_ENV__;
+  let envObj: Record<string, unknown> | null =
+    cfEnv && typeof cfEnv === "object"
+      ? { ...(cfEnv as Record<string, unknown>) }
+      : null;
 
   if (!envObj) {
     try {
@@ -102,15 +105,15 @@ export async function getServerEnv(): Promise<FacultyOSEnv> {
   if (!envObj.DB && envObj.facultyos) {
     envObj.DB = envObj.facultyos;
   }
-  if (!envObj.DB && (globalThis as any).DB) {
-    envObj.DB = (globalThis as any).DB;
+  if (!envObj.DB && g.DB) {
+    envObj.DB = g.DB;
   }
 
   if (!envObj.NOTIFICATIONS && envObj.notifications) {
     envObj.NOTIFICATIONS = envObj.notifications;
   }
-  if (!envObj.NOTIFICATIONS && (globalThis as any).NOTIFICATIONS) {
-    envObj.NOTIFICATIONS = (globalThis as any).NOTIFICATIONS;
+  if (!envObj.NOTIFICATIONS && g.NOTIFICATIONS) {
+    envObj.NOTIFICATIONS = g.NOTIFICATIONS;
   }
 
   if (!envObj.RATE_LIMIT && envObj.rate_limit) {
@@ -119,8 +122,8 @@ export async function getServerEnv(): Promise<FacultyOSEnv> {
   if (!envObj.RATE_LIMIT && envObj.rateLimit) {
     envObj.RATE_LIMIT = envObj.rateLimit;
   }
-  if (!envObj.RATE_LIMIT && (globalThis as any).RATE_LIMIT) {
-    envObj.RATE_LIMIT = (globalThis as any).RATE_LIMIT;
+  if (!envObj.RATE_LIMIT && g.RATE_LIMIT) {
+    envObj.RATE_LIMIT = g.RATE_LIMIT;
   }
 
   // BETTER_AUTH_SECRET validation & dev fallback

@@ -40,8 +40,9 @@ export async function verifyTurnstileToken(
       success: outcome.success,
       error: outcome.success ? undefined : (outcome["error-codes"] || ["turnstile_failed"]).join(", "),
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[Turnstile] Verification exception:", err);
-    return { success: false, error: err?.message || "turnstile_verification_exception" };
+    const error = err instanceof Error ? err.message : "turnstile_verification_exception";
+    return { success: false, error };
   }
 }

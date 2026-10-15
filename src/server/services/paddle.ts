@@ -56,27 +56,43 @@ export async function verifyPaddleWebhookSignature(
   }
 }
 
+export interface PaddleEventData {
+  id?: string;
+  subscription_id?: string;
+  customer_id?: string;
+  status?: string;
+  items?: Array<{ price?: { id?: string } }>;
+  details?: { line_items?: Array<{ price_id?: string }> };
+  custom_data?: { profileId?: string };
+  current_billing_period?: { ends_at?: string };
+  scheduled_change?: { action?: string };
+  [key: string]: unknown;
+}
+
 export interface PaddleWebhookEvent {
   event_id: string;
   event_type: string;
   occurred_at: string;
-  data: any;
+  data: PaddleEventData;
 }
 
 /**
  * Maps Paddle Price ID to application plan tier
  */
-export function mapPriceToPlan(priceId?: string, env?: any): "free" | "pro" | "department" {
+export function mapPriceToPlan(
+  priceId?: string,
+  env?: Record<string, unknown>,
+): "free" | "pro" | "department" {
   const proMonthly =
-    env?.NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY ||
+    (env?.NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY as string | undefined) ||
     process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO_MONTHLY ||
     "pri_01m4mwgb41h1bqc8p81cg0ee4g";
   const proSemester =
-    env?.NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER ||
+    (env?.NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER as string | undefined) ||
     process.env.NEXT_PUBLIC_PADDLE_PRICE_PRO_SEMESTER ||
     "pri_01m4mwpvt6wevqx3dty501tdcx";
   const deptYearly =
-    env?.NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY ||
+    (env?.NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY as string | undefined) ||
     process.env.NEXT_PUBLIC_PADDLE_PRICE_DEPT_YEARLY ||
     "pri_01m4mwvdhcv3hyrymyxazr1rwt";
 
@@ -95,7 +111,7 @@ export function mapPriceToPlan(priceId?: string, env?: any): "free" | "pro" | "d
 export async function handlePaddleSubscriptionEvent(
   db: Db,
   event: PaddleWebhookEvent,
-  env?: any,
+  env?: Record<string, unknown>,
 ): Promise<{ handled: boolean; error?: string }> {
   const { event_type, data } = event;
 
@@ -142,11 +158,13 @@ export async function handlePaddleSubscriptionEvent(
     }
 
     // 3. Upsert subscription record
-    const [existingSub] = await db
-      .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.providerSubscriptionId, subscriptionId))
-      .limit(1);
+    const [existingSub] = subscriptionId
+      ? await db
+          .select()
+          .from(subscriptions)
+          .where(eq(subscriptions.providerSubscriptionId, subscriptionId))
+          .limit(1)
+      : [null];
 
     if (existingSub) {
       await db

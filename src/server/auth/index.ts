@@ -1,8 +1,12 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import * as schema from "@/server/db/schema";
-import { createDb, type Db, getDb } from "@/server/db";
+import { type Db, getDb } from "@/server/db";
 import { getServerEnv } from "@/server/env";
+
+type CloudflareGlobal = {
+  __CF_ENV__?: Record<string, unknown>;
+};
 
 export function createAuth(
   db: Db,
@@ -10,22 +14,26 @@ export function createAuth(
   baseURL?: string,
   trustedOrigins?: string[]
 ) {
+  const cfEnv = (globalThis as unknown as CloudflareGlobal).__CF_ENV__;
+
   const resolvedSecret =
     secret ||
-    (globalThis as any).__CF_ENV__?.BETTER_AUTH_SECRET ||
+    (typeof cfEnv?.BETTER_AUTH_SECRET === "string" ? cfEnv.BETTER_AUTH_SECRET : undefined) ||
     process.env.BETTER_AUTH_SECRET ||
     "facultyos-dev-secret-do-not-use-in-production";
 
   const resolvedBaseURL =
     baseURL ||
-    (globalThis as any).__CF_ENV__?.BETTER_AUTH_URL ||
+    (typeof cfEnv?.BETTER_AUTH_URL === "string" ? cfEnv.BETTER_AUTH_URL : undefined) ||
     process.env.BETTER_AUTH_URL ||
     "https://facultyos.gs-softwares.workers.dev";
 
   const rawTrusted =
-    (Array.isArray((globalThis as any).__CF_ENV__?.BETTER_AUTH_TRUSTED_ORIGINS)
-      ? (globalThis as any).__CF_ENV__.BETTER_AUTH_TRUSTED_ORIGINS.join(",")
-      : (globalThis as any).__CF_ENV__?.BETTER_AUTH_TRUSTED_ORIGINS) ||
+    (Array.isArray(cfEnv?.BETTER_AUTH_TRUSTED_ORIGINS)
+      ? cfEnv.BETTER_AUTH_TRUSTED_ORIGINS.join(",")
+      : typeof cfEnv?.BETTER_AUTH_TRUSTED_ORIGINS === "string"
+        ? cfEnv.BETTER_AUTH_TRUSTED_ORIGINS
+        : undefined) ||
     process.env.BETTER_AUTH_TRUSTED_ORIGINS ||
     "";
   const resolvedTrustedOrigins =
@@ -80,16 +88,17 @@ export function createAuth(
 export async function getAuth() {
   const env = await getServerEnv();
   const db = await getDb();
+  const cfEnv = (globalThis as unknown as CloudflareGlobal).__CF_ENV__;
 
   const secret =
     env.BETTER_AUTH_SECRET ||
-    (globalThis as any).__CF_ENV__?.BETTER_AUTH_SECRET ||
+    (typeof cfEnv?.BETTER_AUTH_SECRET === "string" ? cfEnv.BETTER_AUTH_SECRET : undefined) ||
     process.env.BETTER_AUTH_SECRET ||
     "facultyos-dev-secret-do-not-use-in-production";
 
   const baseURL =
     env.BETTER_AUTH_URL ||
-    (globalThis as any).__CF_ENV__?.BETTER_AUTH_URL ||
+    (typeof cfEnv?.BETTER_AUTH_URL === "string" ? cfEnv.BETTER_AUTH_URL : undefined) ||
     process.env.BETTER_AUTH_URL ||
     "https://facultyos.gs-softwares.workers.dev";
 
@@ -97,9 +106,11 @@ export async function getAuth() {
     (Array.isArray(env.BETTER_AUTH_TRUSTED_ORIGINS)
       ? env.BETTER_AUTH_TRUSTED_ORIGINS.join(",")
       : env.BETTER_AUTH_TRUSTED_ORIGINS) ||
-    (Array.isArray((globalThis as any).__CF_ENV__?.BETTER_AUTH_TRUSTED_ORIGINS)
-      ? (globalThis as any).__CF_ENV__.BETTER_AUTH_TRUSTED_ORIGINS.join(",")
-      : (globalThis as any).__CF_ENV__?.BETTER_AUTH_TRUSTED_ORIGINS) ||
+    (Array.isArray(cfEnv?.BETTER_AUTH_TRUSTED_ORIGINS)
+      ? cfEnv.BETTER_AUTH_TRUSTED_ORIGINS.join(",")
+      : typeof cfEnv?.BETTER_AUTH_TRUSTED_ORIGINS === "string"
+        ? cfEnv.BETTER_AUTH_TRUSTED_ORIGINS
+        : undefined) ||
     process.env.BETTER_AUTH_TRUSTED_ORIGINS ||
     "";
 

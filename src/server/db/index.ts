@@ -11,9 +11,9 @@ function createFallbackD1(): D1Database {
   const dummyStatement = {
     bind: () => dummyStatement,
     first: async () => null,
-    all: async () => ({ results: [], success: true, meta: {} as any }),
+    all: async () => ({ results: [], success: true, meta: {} as unknown as D1Response["meta"] }),
     raw: async () => [],
-    run: async () => ({ success: true, meta: {} as any }),
+    run: async () => ({ success: true, meta: {} as unknown as D1Response["meta"] }),
   } as unknown as D1PreparedStatement;
 
   return {
@@ -23,6 +23,12 @@ function createFallbackD1(): D1Database {
     exec: async () => ({ count: 0, duration: 0 }),
   } as unknown as D1Database;
 }
+
+type BindingStore = {
+  DB?: D1Database;
+  facultyos?: D1Database;
+  __CF_ENV__?: { DB?: D1Database; facultyos?: D1Database };
+};
 
 /**
  * Dynamically resolves the Cloudflare D1 database binding `DB`.
@@ -38,18 +44,15 @@ export function getD1Binding(d1?: D1Database): D1Database | undefined {
     return d1;
   }
 
+  const g = globalThis as unknown as BindingStore;
+  const p = process.env as unknown as BindingStore;
+
   // 1. Check globalThis.__CF_ENV__ (populated on Cloudflare request)
-  if (
-    (globalThis as any).__CF_ENV__?.DB &&
-    typeof (globalThis as any).__CF_ENV__.DB.prepare === "function"
-  ) {
-    return (globalThis as any).__CF_ENV__.DB;
+  if (g.__CF_ENV__?.DB && typeof g.__CF_ENV__.DB.prepare === "function") {
+    return g.__CF_ENV__.DB;
   }
-  if (
-    (globalThis as any).__CF_ENV__?.facultyos &&
-    typeof (globalThis as any).__CF_ENV__.facultyos.prepare === "function"
-  ) {
-    return (globalThis as any).__CF_ENV__.facultyos;
+  if (g.__CF_ENV__?.facultyos && typeof g.__CF_ENV__.facultyos.prepare === "function") {
+    return g.__CF_ENV__.facultyos;
   }
 
   // 2. Dynamic check via @opennextjs/cloudflare getCloudflareContext()
@@ -68,31 +71,19 @@ export function getD1Binding(d1?: D1Database): D1Database | undefined {
   }
 
   // 3. Check globalThis bindings directly
-  if (
-    (globalThis as any).DB &&
-    typeof (globalThis as any).DB.prepare === "function"
-  ) {
-    return (globalThis as any).DB;
+  if (g.DB && typeof g.DB.prepare === "function") {
+    return g.DB;
   }
-  if (
-    (globalThis as any).facultyos &&
-    typeof (globalThis as any).facultyos.prepare === "function"
-  ) {
-    return (globalThis as any).facultyos;
+  if (g.facultyos && typeof g.facultyos.prepare === "function") {
+    return g.facultyos;
   }
 
   // 4. Check process.env (e.g. Miniflare / local tests / migration scripts)
-  if (
-    (process.env as any).DB &&
-    typeof (process.env as any).DB.prepare === "function"
-  ) {
-    return (process.env as any).DB;
+  if (p.DB && typeof p.DB.prepare === "function") {
+    return p.DB;
   }
-  if (
-    (process.env as any).facultyos &&
-    typeof (process.env as any).facultyos.prepare === "function"
-  ) {
-    return (process.env as any).facultyos;
+  if (p.facultyos && typeof p.facultyos.prepare === "function") {
+    return p.facultyos;
   }
 
   return undefined;
@@ -121,7 +112,7 @@ export async function getDb(): Promise<DrizzleD1Database<typeof schema>> {
   const env = await getServerEnv();
   const d1 =
     env.DB ||
-    (env as any).facultyos ||
+    (env as unknown as { facultyos?: D1Database }).facultyos ||
     getD1Binding();
 
   if (!d1 || typeof d1.prepare !== "function") {
@@ -154,13 +145,17 @@ export async function withTransaction<T>(
   db: Db,
   fn: (tx: Db) => Promise<T>,
 ): Promise<T> {
+  const rawDb = db as unknown as {
+    session?: { client?: { prepare?: unknown } };
+    transaction?: (fn: (tx: Db) => Promise<T>) => Promise<T>;
+  };
   const isD1 =
-    (db as any).session?.client &&
-    typeof (db as any).session?.client?.prepare === "function";
+    rawDb.session?.client &&
+    typeof rawDb.session.client.prepare === "function";
 
-  if (!isD1 && typeof (db as any).transaction === "function") {
+  if (!isD1 && typeof rawDb.transaction === "function") {
     try {
-      return await (db as any).transaction(fn);
+      return await rawDb.transaction(fn);
     } catch {
       return await fn(db);
     }
