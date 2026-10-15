@@ -14,43 +14,41 @@ export default async function DashboardPage() {
   const db = await getDb();
   console.log("[FACULTYOS_TRACE] DashboardPage: querying courses for profile:", profile.id);
 
-  const profileCourses = await db
-    .select()
-    .from(courses)
-    .where(eq(courses.profileId, profile.id));
-  console.log("[FACULTYOS_TRACE] DashboardPage: profileCourses found:", profileCourses.length);
-
-  let needsDecisionCount = 0;
-  let autoResolvedCount = 0;
-
-  if (profileCourses.length > 0) {
-    const courseIds = profileCourses.map((c) => c.id);
-
-    // Parallelize independent read-only count queries
-    const [needsDecisionResult, autoResolvedResult] = await Promise.all([
+  const [profileCourses, needsDecisionResult, autoResolvedResult] =
+    await Promise.all([
+      db
+        .select()
+        .from(courses)
+        .where(eq(courses.profileId, profile.id)),
       db
         .select({ total: count() })
         .from(requests)
+        .innerJoin(courses, eq(requests.courseId, courses.id))
         .where(
           and(
-            inArray(requests.courseId, courseIds),
+            eq(courses.profileId, profile.id),
             inArray(requests.status, ["pending", "escalated"]),
           ),
         ),
       db
         .select({ total: count() })
         .from(requests)
+        .innerJoin(courses, eq(requests.courseId, courses.id))
         .where(
           and(
-            inArray(requests.courseId, courseIds),
+            eq(courses.profileId, profile.id),
             inArray(requests.status, ["auto_approved", "auto_denied"]),
           ),
         ),
     ]);
 
-    needsDecisionCount = needsDecisionResult[0]?.total ?? 0;
-    autoResolvedCount = autoResolvedResult[0]?.total ?? 0;
-  }
+  console.log(
+    "[FACULTYOS_TRACE] DashboardPage: profileCourses found:",
+    profileCourses.length
+  );
+
+  const needsDecisionCount = needsDecisionResult[0]?.total ?? 0;
+  const autoResolvedCount = autoResolvedResult[0]?.total ?? 0;
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">

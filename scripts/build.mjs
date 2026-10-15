@@ -679,14 +679,13 @@ var loadManifestFromRelativePath = globalThis.loadManifestFromRelativePath = fun
 // stream flushes. Without this shim the RSC stream never flushes and
 // every /dashboard request hangs until the 25s timeout fires.
 (function patchSetImmediate(){
-  var _origST = globalThis.setTimeout.bind(globalThis);
-  var _origCT = globalThis.clearTimeout.bind(globalThis);
   if (typeof globalThis.setImmediate !== "function") {
     globalThis.setImmediate = function setImmediate(fn) {
       var args = Array.prototype.slice.call(arguments, 1);
-      return _origST(function(){ fn.apply(null, args); }, 0);
+      queueMicrotask(function(){ fn.apply(null, args); });
+      return 0;
     };
-    globalThis.clearImmediate = function clearImmediate(id) { _origCT(id); };
+    globalThis.clearImmediate = function clearImmediate() {};
   }
   // Also patch the node:timers named export used by React internals
   try {

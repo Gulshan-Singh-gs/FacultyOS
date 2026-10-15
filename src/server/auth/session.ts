@@ -1,9 +1,8 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
-import { and, eq, gt } from "drizzle-orm";
+import { cookies, headers } from "next/headers";
+import { and, eq, or, gt, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { getAuth } from "@/server/auth";
 import { getDb } from "@/server/db";
 import {
   professorProfiles,
@@ -12,6 +11,20 @@ import {
   user as userTable,
   session as sessionTable,
 } from "@/server/db/schema";
+
+export interface SessionData {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    image?: string | null;
+  };
+  session: {
+    id: string;
+    token: string;
+    expiresAt: Date;
+  };
+}
 
 export interface AuthenticatedContext {
   user: {
@@ -109,160 +122,175 @@ export async function getOrCreateProfile(
   return profile;
 }
 
-interface ResolvedSessionData {
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    image?: string | null;
-  };
-  session: {
-    id: string;
-    token: string;
-    expiresAt: Date;
-  };
-}
+/**
+ * Resolves current session directly from D1 by checking session cookies.
+ * Bypasses BetterAuth's internal router to avoid promise stalls / context loss in RSCs.
+ */
+export const getSession = cache(async (): Promise<SessionData | null> => {
+  const cookieNames = [
+    "__Secure-facultyos.session_token",
+    "facultyos.session_token",
+    "__Secure-better-auth.session_token",
+    "better-auth.session_token",
+    "auth_session",
+  ];
 
-async function resolveDirectSessionFromD1(
-  cookieHeader: string,
-): Promise<ResolvedSessionData | null> {
+  let rawCookieValue: string | undefined;
+
   try {
-    const match =
-      cookieHeader.match(/(?:__Secure-)?(?:facultyos|better-auth)\.session_token=([^;]+)/i) ||
-      cookieHeader.match(/session_token=([^;]+)/i);
-    if (!match?.[1]) return null;
+    const cookieStore = await cookies();
+    for (const name of cookieNames) {
+      const val = cookieStore.get(name)?.value;
+      if (val) {
+        rawCookieValue = val;
+        break;
+      }
+    }
+  } catch {
+    // Outside request context or fallback
+  }
 
-    let rawToken = decodeURIComponent(match[1].trim());
-    if (rawToken.includes(".")) rawToken = rawToken.split(".")[0];
+  if (!rawCookieValue) {
+    try {
+      const reqHeaders = await headers();
+      const cookieHeader = reqHeaders.get("cookie") || "";
+      for (const name of cookieNames) {
+        const match = cookieHeader.match(
+          new RegExp(`(?:^|;\\s*)${name.replace(".", "\\.")}=([^;]+)`)
+        );
+        if (match?.[1]) {
+          rawCookieValue = match[1];
+          break;
+        }
+      }
+    } catch {}
+  }
 
+  if (!rawCookieValue) {
+    return null;
+  }
+
+  let sessionToken = decodeURIComponent(rawCookieValue.trim());
+  if (sessionToken.includes(".")) {
+    sessionToken = sessionToken.split(".")[0];
+  }
+
+  try {
     const db = await getDb();
-    const now = new Date();
-    const [activeSession] = await db
+    const nowMs = Date.now();
+    const nowSec = Math.floor(nowMs / 1000);
+
+    const [sessionRow] = await db
       .select()
       .from(sessionTable)
       .where(
         and(
-          eq(sessionTable.token, rawToken),
-          gt(sessionTable.expiresAt, now),
-        ),
+          eq(sessionTable.token, sessionToken),
+          or(
+            gt(sessionTable.expiresAt, new Date(nowMs)),
+            sql`${sessionTable.expiresAt} < 10000000000 AND ${sessionTable.expiresAt} > ${nowSec}`
+          )
+        )
       )
       .limit(1);
 
-    if (!activeSession) return null;
+    if (!sessionRow) {
+      return null;
+    }
 
-    const [dbUser] = await db
+    const [userRow] = await db
       .select()
       .from(userTable)
-      .where(eq(userTable.id, activeSession.userId))
+      .where(eq(userTable.id, sessionRow.userId))
       .limit(1);
 
-    if (!dbUser) return null;
+    if (!userRow) {
+      return null;
+    }
 
-    console.log("[FACULTYOS_TRACE] direct D1 session verification success for:", dbUser.email);
+    let expiresAt = sessionRow.expiresAt;
+    if (expiresAt instanceof Date && expiresAt.getTime() < 1000000000000) {
+      expiresAt = new Date(expiresAt.getTime() * 1000);
+    }
+
     return {
       user: {
-        id: dbUser.id,
-        email: dbUser.email,
-        name: dbUser.name,
-        image: dbUser.image ?? null,
+        id: userRow.id,
+        email: userRow.email,
+        name: userRow.name,
+        image: userRow.image ?? null,
       },
       session: {
-        id: activeSession.id,
-        token: activeSession.token,
-        expiresAt: activeSession.expiresAt,
+        id: sessionRow.id,
+        token: sessionRow.token,
+        expiresAt,
       },
     };
   } catch (err) {
-    console.warn("[FACULTYOS_TRACE] resolveDirectSessionFromD1 error:", err);
+    console.warn("[FACULTYOS_TRACE] getSession D1 query error:", err);
     return null;
   }
-}
+});
+
+/**
+ * Server-side helper that requires an active session.
+ * Redirects to /login if unauthenticated.
+ */
+export const requireAuth = cache(async (): Promise<SessionData> => {
+  const sessionData = await getSession();
+  if (!sessionData?.user) {
+    redirect("/login");
+  }
+  return sessionData;
+});
 
 /**
  * Server-side helper that requires an active session and provisioned profile.
- * Redirects to /login if unauthenticated.
+ * Redirects to /login if unauthenticated or /onboarding if profile is missing.
  */
 export const requireProfile = cache(async (): Promise<AuthenticatedContext> => {
-  const reqHeaders = await headers();
-  const cookieHeader = reqHeaders.get("cookie") || "";
-
-  if (!cookieHeader.includes("session_token")) {
-    redirect("/login");
-  }
-
-  // 1. Fast-path: Verify directly against D1 (<5ms, zero cross-request context issues)
-  let session = await resolveDirectSessionFromD1(cookieHeader);
-
-  // 2. Fallback to BetterAuth getSession only if direct check didn't match
-  if (!session?.user) {
-    try {
-      const auth = await getAuth();
-      session = await Promise.race([
-        auth.api.getSession({ headers: reqHeaders }),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
-      ]);
-    } catch (err: unknown) {
-      if (
-        err &&
-        typeof err === "object" &&
-        "digest" in err &&
-        typeof (err as { digest: unknown }).digest === "string" &&
-        (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")
-      ) {
-        throw err;
-      }
-      console.warn("[FacultyOS requireProfile] getSession error:", err);
-    }
-  }
-
-  if (!session?.user) {
-    redirect("/login");
-  }
+  const sessionData = await requireAuth();
 
   const profile = await getOrCreateProfile(
-    session.user.id,
-    session.user.email,
-    session.user.name,
+    sessionData.user.id,
+    sessionData.user.email,
+    sessionData.user.name,
   );
 
+  if (!profile) {
+    redirect("/onboarding");
+  }
+
   return {
-    user: session.user,
-    session: session.session,
+    user: sessionData.user,
+    session: sessionData.session,
     profile,
   };
 });
 
+/**
+ * Helper to get current profile without throwing redirects if unauthenticated.
+ */
 export const getCurrentProfile = cache(async (): Promise<AuthenticatedContext | null> => {
   try {
-    const reqHeaders = await headers();
-    const cookieHeader = reqHeaders.get("cookie") || "";
-    if (!cookieHeader.includes("session_token")) {
-      return null;
-    }
-
-    let session = await resolveDirectSessionFromD1(cookieHeader);
-
-    if (!session?.user) {
-      const auth = await getAuth();
-      session = await Promise.race([
-        auth.api.getSession({ headers: reqHeaders }),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
-      ]);
-    }
-
-    if (!session?.user) {
+    const sessionData = await getSession();
+    if (!sessionData?.user) {
       return null;
     }
 
     const profile = await getOrCreateProfile(
-      session.user.id,
-      session.user.email,
-      session.user.name,
+      sessionData.user.id,
+      sessionData.user.email,
+      sessionData.user.name,
     );
 
+    if (!profile) {
+      return null;
+    }
+
     return {
-      user: session.user,
-      session: session.session,
+      user: sessionData.user,
+      session: sessionData.session,
       profile,
     };
   } catch {

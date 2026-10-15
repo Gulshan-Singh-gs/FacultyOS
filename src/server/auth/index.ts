@@ -12,21 +12,28 @@ export function createAuth(
 ) {
   const resolvedSecret =
     secret ||
+    (globalThis as any).__CF_ENV__?.BETTER_AUTH_SECRET ||
     process.env.BETTER_AUTH_SECRET ||
     "facultyos-dev-secret-do-not-use-in-production";
 
   const resolvedBaseURL =
     baseURL ||
+    (globalThis as any).__CF_ENV__?.BETTER_AUTH_URL ||
     process.env.BETTER_AUTH_URL ||
     "https://facultyos.gs-softwares.workers.dev";
 
-  const rawTrusted = process.env.BETTER_AUTH_TRUSTED_ORIGINS || "";
+  const rawTrusted =
+    (Array.isArray((globalThis as any).__CF_ENV__?.BETTER_AUTH_TRUSTED_ORIGINS)
+      ? (globalThis as any).__CF_ENV__.BETTER_AUTH_TRUSTED_ORIGINS.join(",")
+      : (globalThis as any).__CF_ENV__?.BETTER_AUTH_TRUSTED_ORIGINS) ||
+    process.env.BETTER_AUTH_TRUSTED_ORIGINS ||
+    "";
   const resolvedTrustedOrigins =
     trustedOrigins ||
     (rawTrusted
       ? rawTrusted
           .split(",")
-          .map((url) => url.trim().replace(/\/$/, ""))
+          .map((url: string) => url.trim().replace(/\/$/, ""))
           .filter(Boolean)
       : [
           "https://facultyos.gs-softwares.workers.dev",
@@ -74,23 +81,15 @@ export async function getAuth() {
   const env = await getServerEnv();
   const db = await getDb();
 
-  // Resolve secret: prefer env.BETTER_AUTH_SECRET || process.env.BETTER_AUTH_SECRET
-  const secret = env.BETTER_AUTH_SECRET || process.env.BETTER_AUTH_SECRET;
+  const secret =
+    env.BETTER_AUTH_SECRET ||
+    (globalThis as any).__CF_ENV__?.BETTER_AUTH_SECRET ||
+    process.env.BETTER_AUTH_SECRET ||
+    "facultyos-dev-secret-do-not-use-in-production";
 
-  if (!secret) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error(
-        "[FacultyOS] BETTER_AUTH_SECRET is not configured. " +
-        "Run: npx wrangler secret put BETTER_AUTH_SECRET"
-      );
-    }
-    // Local dev only — use a deterministic dev secret so sessions persist across restarts
-    console.warn("[FacultyOS Auth] Using dev-only secret. Set BETTER_AUTH_SECRET for production.");
-  }
-
-  const resolvedSecret = secret || "facultyos-dev-secret-do-not-use-in-production";
   const baseURL =
     env.BETTER_AUTH_URL ||
+    (globalThis as any).__CF_ENV__?.BETTER_AUTH_URL ||
     process.env.BETTER_AUTH_URL ||
     "https://facultyos.gs-softwares.workers.dev";
 
@@ -98,16 +97,21 @@ export async function getAuth() {
     (Array.isArray(env.BETTER_AUTH_TRUSTED_ORIGINS)
       ? env.BETTER_AUTH_TRUSTED_ORIGINS.join(",")
       : env.BETTER_AUTH_TRUSTED_ORIGINS) ||
+    (Array.isArray((globalThis as any).__CF_ENV__?.BETTER_AUTH_TRUSTED_ORIGINS)
+      ? (globalThis as any).__CF_ENV__.BETTER_AUTH_TRUSTED_ORIGINS.join(",")
+      : (globalThis as any).__CF_ENV__?.BETTER_AUTH_TRUSTED_ORIGINS) ||
     process.env.BETTER_AUTH_TRUSTED_ORIGINS ||
     "";
 
   const trustedOrigins = (
-    rawTrusted ||
-    "https://facultyos.gs-softwares.workers.dev,https://facultyos.com,http://localhost:3000,http://127.0.0.1:3000"
+    String(
+      rawTrusted ||
+        "https://facultyos.gs-softwares.workers.dev,https://facultyos.com,http://localhost:3000,http://127.0.0.1:3000"
+    )
   )
     .split(",")
-    .map((url) => url.trim().replace(/\/$/, ""))
+    .map((url: string) => url.trim().replace(/\/$/, ""))
     .filter(Boolean);
 
-  return createAuth(db, resolvedSecret, baseURL, trustedOrigins);
+  return createAuth(db, secret, baseURL, trustedOrigins);
 }

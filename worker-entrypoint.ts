@@ -2,11 +2,12 @@
 // so this setImmediate shim runs AFTER handler.mjs has already been evaluated.
 // The real fix is the shim prepended to handler.mjs by scripts/build.mjs.
 // This shim here is defense-in-depth for the worker-entrypoint module itself.
-const _origSetTimeout = globalThis.setTimeout.bind(globalThis);
 if (typeof (globalThis as any).setImmediate !== "function") {
-  (globalThis as any).setImmediate = (fn: (...args: any[]) => void, ...args: any[]) =>
-    _origSetTimeout(() => fn(...args), 0);
-  (globalThis as any).clearImmediate = (id: any) => globalThis.clearTimeout(id);
+  (globalThis as any).setImmediate = (fn: (...args: any[]) => void, ...args: any[]) => {
+    queueMicrotask(() => fn(...args));
+    return 0;
+  };
+  (globalThis as any).clearImmediate = () => {};
 }
 // @ts-ignore
 import handler from "./.open-next/worker.js";
@@ -26,7 +27,9 @@ const PROTECTED_PREFIXES = [
 function extractSessionToken(cookieHeader: string): string | null {
   if (!cookieHeader) return null;
   const match =
-    cookieHeader.match(/(?:facultyos|better-auth)\.session_token=([^;]+)/i) ||
+    cookieHeader.match(
+      /(?:(?:__Secure-)?(?:facultyos|better-auth)\.session_token|auth_session)=([^;]+)/i
+    ) ||
     cookieHeader.match(/session_token=([^;]+)/i);
   if (!match || !match[1]) return null;
   let raw = decodeURIComponent(match[1].trim());
